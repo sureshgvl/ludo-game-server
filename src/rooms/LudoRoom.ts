@@ -2,6 +2,7 @@ import { randomInt } from "node:crypto";
 import { Client, Delayed, Room, ServerError } from "@colyseus/core";
 import { config } from "../config";
 import { LudoGame, pickBotMove } from "../engine/ludo";
+import { getActiveGamesStore } from "../limits/activeGames";
 import { LudoState, PlayerState } from "./LudoState";
 
 export interface JoinOptions {
@@ -29,6 +30,8 @@ export class LudoRoom extends Room<LudoState> {
   private hostSession: string | null = null;
   private missedTurns = new Map<number, number>();
   private turnTimer: Delayed | null = null;
+  /** Users holding one of their (limited) active-game slots through this room. */
+  private heldUsers = new Set<string>();
 
   onCreate(options: JoinOptions): void {
     const players = options.players === 4 ? 4 : 2;
@@ -46,16 +49,45 @@ export class LudoRoom extends Room<LudoState> {
     this.onMessage("start", (client) => this.handleStart(client));
   }
 
-  onAuth(_client: Client, options: JoinOptions): AuthData {
+  /**
+   * Validates the player and reserves one of their active-game slots.
+   * TODO: replace the plain userId with a token issued by ludo-api.
+   */
+  async onAuth(_client: Client, options: JoinOptions): Promise<AuthData> {
     const userId = typeof options?.userId === "string" ? options.userId.trim() : "";
     if (!userId || userId.length > 64) throw new ServerError(4001, "userId required");
     const name = (typeof options.name === "string" ? options.name.trim() : "").slice(0, 20);
+
+    if (this.heldUsers.has(userId)) throw new ServerError(4004, "already_in_room");
+    this.heldUsers.add(userId);
+    let allowed = false;
+    try {
+      allowed = await getActiveGamesStore().tryAdd(userId, this.roomId);
+    } catch {
+      this.heldUsers.delete(userId);
+      throw new ServerError(5000, "limit_check_failed");
+    }
+    if (!allowed) {
+      this.heldUsers.delete(userId);
+      throw new ServerError(4003, "max_active_games");
+    }
     return { userId, name: name || "Player" };
+  }
+
+  /** Give a user's active-game slot back (idempotent). */
+  private release(userId: string): void {
+    if (!this.heldUsers.delete(userId)) return;
+    getActiveGamesStore()
+      .remove(userId, this.roomId)
+      .catch(() => {});
   }
 
   onJoin(client: Client, _options: JoinOptions, auth: AuthData): void {
     const seat = this.seatList.find((s) => !this.state.players.some((p) => p.seat === s));
-    if (seat === undefined) throw new ServerError(4002, "room full");
+    if (seat === undefined) {
+      this.release(auth.userId);
+      throw new ServerError(4002, "room full");
+    }
 
     const player = new PlayerState();
     player.seat = seat;
@@ -83,6 +115,7 @@ export class LudoRoom extends Room<LudoState> {
       if (this.hostSession === client.sessionId) {
         this.hostSession = [...this.seatBySession.keys()][0] ?? null;
       }
+      this.release(player.userId);
       this.touch();
       return;
     }
@@ -112,6 +145,7 @@ export class LudoRoom extends Room<LudoState> {
       // Did not come back in time: a bot takes over the seat.
       if (this.isRunning() && !player.forfeited) {
         player.isBot = true;
+        this.release(player.userId);
         this.broadcast("bot_takeover", { seat });
         this.scheduleTurn();
         this.touch();
@@ -121,6 +155,7 @@ export class LudoRoom extends Room<LudoState> {
 
   onDispose(): void {
     this.turnTimer?.clear();
+    for (const userId of [...this.heldUsers]) this.release(userId);
   }
 
   // ---- lobby -------------------------------------------------------------
@@ -276,6 +311,7 @@ export class LudoRoom extends Room<LudoState> {
     if (!game || !player || player.forfeited) return;
     const ended = game.forfeit(seat);
     player.forfeited = true;
+    this.release(player.userId);
     this.broadcast("forfeit", { seat, reason });
     this.syncState();
     if (ended) this.endGame();
@@ -290,6 +326,7 @@ export class LudoRoom extends Room<LudoState> {
     });
     this.turnTimer?.clear();
     this.state.turnDeadline = 0;
+    for (const p of this.state.players) this.release(p.userId);
     this.touch();
     this.broadcast("game_over", {
       placements: placements.map((seat, i) => {
