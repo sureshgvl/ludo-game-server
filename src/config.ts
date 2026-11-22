@@ -1,20 +1,26 @@
+function num(name: string, fallback: number): number {
+  const raw = process.env[name];
+  const value = raw === undefined || raw === "" ? NaN : Number(raw);
+  return Number.isFinite(value) ? value : fallback;
+}
+
 export const config = {
-  port: Number(process.env.PORT ?? 2567),
+  port: num("PORT", 2567),
   redisUrl: process.env.REDIS_URL ?? "",
   // A user may be in at most this many active games at once.
-  maxActiveGamesPerUser: 3,
+  maxActiveGamesPerUser: num("MAX_ACTIVE_GAMES", 3),
   // Seconds a player has to act before the server auto-plays the turn.
-  turnTimeoutSeconds: 15,
+  turnTimeoutSeconds: num("TURN_TIMEOUT_SECONDS", 15),
   // Auto-played turns in a row before a player forfeits.
-  maxMissedTurns: 3,
+  maxMissedTurns: num("MAX_MISSED_TURNS", 3),
   // Seconds a public lobby waits for real players before bots fill the empty seats.
-  lobbyFillSeconds: 20,
+  lobbyFillSeconds: num("LOBBY_FILL_SECONDS", 20),
   // Seconds a dropped player has to reconnect before a bot takes the seat.
-  reconnectSeconds: 30,
+  reconnectSeconds: num("RECONNECT_SECONDS", 30),
   // Pause before a bot (or a disconnected player's auto-play) acts.
-  botDelayMs: 900,
+  botDelayMs: num("BOT_DELAY_MS", 900),
   // Pause before the server plays a forced move (only one legal piece).
-  autoMoveDelayMs: 450,
+  autoMoveDelayMs: num("AUTO_MOVE_DELAY_MS", 450),
   // How long a finished room stays open so clients can read the result.
-  finishedCloseMs: 15000,
+  finishedCloseMs: num("FINISHED_CLOSE_MS", 15000),
 };
