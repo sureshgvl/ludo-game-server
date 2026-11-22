@@ -1,7 +1,7 @@
 import { randomInt } from "node:crypto";
-import { Client, Room, ServerError } from "@colyseus/core";
+import { Client, Delayed, Room, ServerError } from "@colyseus/core";
 import { config } from "../config";
-import { LudoGame } from "../engine/ludo";
+import { LudoGame, pickBotMove } from "../engine/ludo";
 import { LudoState, PlayerState } from "./LudoState";
 
 export interface JoinOptions {
@@ -26,6 +26,9 @@ export class LudoRoom extends Room<LudoState> {
   private game: LudoGame | null = null;
   private seatList: number[] = [0, 2];
   private seatBySession = new Map<string, number>();
+  private hostSession: string | null = null;
+  private missedTurns = new Map<number, number>();
+  private turnTimer: Delayed | null = null;
 
   onCreate(options: JoinOptions): void {
     const players = options.players === 4 ? 4 : 2;
@@ -40,6 +43,7 @@ export class LudoRoom extends Room<LudoState> {
     this.onMessage("move", (client, message: { piece?: number }) =>
       this.handleMove(client, message?.piece),
     );
+    this.onMessage("start", (client) => this.handleStart(client));
   }
 
   onAuth(_client: Client, options: JoinOptions): AuthData {
@@ -59,15 +63,99 @@ export class LudoRoom extends Room<LudoState> {
     player.name = auth.name;
     this.state.players.push(player);
     this.seatBySession.set(client.sessionId, seat);
+    this.hostSession ??= client.sessionId;
     this.touch();
 
     if (this.state.players.length === this.seatList.length) this.startGame();
   }
 
+  async onLeave(client: Client, consented: boolean): Promise<void> {
+    const seat = this.seatOf(client);
+    if (seat === undefined) return;
+    const player = this.playerBySeat(seat);
+    if (!player) return;
+
+    // Before the game starts, leaving just frees the seat.
+    if (!this.game) {
+      const idx = this.state.players.findIndex((p) => p.seat === seat);
+      if (idx >= 0) this.state.players.splice(idx, 1);
+      this.seatBySession.delete(client.sessionId);
+      if (this.hostSession === client.sessionId) {
+        this.hostSession = [...this.seatBySession.keys()][0] ?? null;
+      }
+      this.touch();
+      return;
+    }
+
+    if (this.game.phase === "finished") {
+      player.connected = false;
+      this.touch();
+      return;
+    }
+
+    // Leaving on purpose forfeits the game.
+    if (consented) {
+      this.forfeitSeat(seat, "left");
+      return;
+    }
+
+    // A dropped connection: auto-play for them while we wait for a reconnect.
+    player.connected = false;
+    this.scheduleTurn();
+    this.touch();
+    try {
+      await this.allowReconnection(client, config.reconnectSeconds);
+      player.connected = true;
+      this.scheduleTurn();
+      this.touch();
+    } catch {
+      // Did not come back in time: a bot takes over the seat.
+      if (this.isRunning() && !player.forfeited) {
+        player.isBot = true;
+        this.broadcast("bot_takeover", { seat });
+        this.scheduleTurn();
+        this.touch();
+      }
+    }
+  }
+
+  onDispose(): void {
+    this.turnTimer?.clear();
+  }
+
+  // ---- lobby -------------------------------------------------------------
+
+  private handleStart(client: Client): void {
+    if (this.game || client.sessionId !== this.hostSession) return;
+    this.fillWithBots();
+    this.startGame();
+  }
+
+  private fillWithBots(): void {
+    let n = 1;
+    for (const seat of this.seatList) {
+      if (this.state.players.some((p) => p.seat === seat)) continue;
+      const bot = new PlayerState();
+      bot.seat = seat;
+      bot.userId = `bot-${seat}`;
+      bot.name = `Bot ${n++}`;
+      bot.isBot = true;
+      this.state.players.push(bot);
+    }
+  }
+
   private startGame(): void {
+    if (this.game) return;
     this.game = new LudoGame(this.seatList);
     this.lock();
     this.syncState();
+  }
+
+  // ---- player actions ----------------------------------------------------
+
+  /** True while a game exists and has not finished (read fresh, safe across awaits). */
+  private isRunning(): boolean {
+    return this.game !== null && this.game.phase !== "finished";
   }
 
   private playerBySeat(seat: number): PlayerState | undefined {
@@ -82,6 +170,7 @@ export class LudoRoom extends Room<LudoState> {
     const game = this.game;
     const seat = this.seatOf(client);
     if (!game || seat === undefined || game.phase !== "roll" || game.turn !== seat) return;
+    this.missedTurns.set(seat, 0);
     this.rollFor(seat);
   }
 
@@ -90,6 +179,7 @@ export class LudoRoom extends Room<LudoState> {
     const seat = this.seatOf(client);
     if (!game || seat === undefined || game.phase !== "move" || game.turn !== seat) return;
     if (typeof piece !== "number" || !game.legal.includes(piece)) return;
+    this.missedTurns.set(seat, 0);
     this.moveFor(seat, piece);
   }
 
@@ -122,6 +212,75 @@ export class LudoRoom extends Room<LudoState> {
     if (result.gameOver) this.endGame();
   }
 
+  // ---- clock, bots, auto-play -------------------------------------------
+
+  /** Decide who acts next and when: bots and dropped players act after a short pause, humans get the turn clock. */
+  private scheduleTurn(): void {
+    this.turnTimer?.clear();
+    this.turnTimer = null;
+    this.state.turnDeadline = 0;
+    const game = this.game;
+    if (!game || game.phase === "finished") return;
+
+    const seat = game.turn;
+    const player = this.playerBySeat(seat);
+    if (!player) return;
+
+    if (player.isBot || !player.connected) {
+      this.turnTimer = this.clock.setTimeout(() => this.botStep(seat), config.botDelayMs);
+      return;
+    }
+
+    if (game.phase === "move" && game.legal.length === 1) {
+      const piece = game.legal[0];
+      this.turnTimer = this.clock.setTimeout(() => {
+        if (this.game?.turn === seat && this.game.phase === "move") this.moveFor(seat, piece);
+      }, config.autoMoveDelayMs);
+      return;
+    }
+
+    const ms = config.turnTimeoutSeconds * 1000;
+    this.state.turnDeadline = Date.now() + ms;
+    this.turnTimer = this.clock.setTimeout(() => this.onTurnTimeout(seat), ms);
+  }
+
+  /** One bot action: roll, or choose a move. Each action reschedules the next. */
+  private botStep(seat: number): void {
+    const game = this.game;
+    if (!game || game.turn !== seat) return;
+    if (game.phase === "roll") this.rollFor(seat);
+    else if (game.phase === "move") this.moveFor(seat, pickBotMove(game));
+  }
+
+  private onTurnTimeout(seat: number): void {
+    const game = this.game;
+    if (!game || game.turn !== seat || game.phase === "finished") return;
+
+    const missed = (this.missedTurns.get(seat) ?? 0) + 1;
+    this.missedTurns.set(seat, missed);
+    if (missed >= config.maxMissedTurns) {
+      this.forfeitSeat(seat, "timeout");
+      return;
+    }
+
+    // Play the whole turn for them.
+    if (game.phase === "roll") this.rollFor(seat);
+    if (this.game && this.game.turn === seat && this.game.phase === "move") {
+      this.moveFor(seat, pickBotMove(this.game));
+    }
+  }
+
+  private forfeitSeat(seat: number, reason: "timeout" | "left"): void {
+    const game = this.game;
+    const player = this.playerBySeat(seat);
+    if (!game || !player || player.forfeited) return;
+    const ended = game.forfeit(seat);
+    player.forfeited = true;
+    this.broadcast("forfeit", { seat, reason });
+    this.syncState();
+    if (ended) this.endGame();
+  }
+
   private endGame(): void {
     const game = this.game!;
     const placements = game.placements();
@@ -129,6 +288,8 @@ export class LudoRoom extends Room<LudoState> {
       const player = this.playerBySeat(seat);
       if (player) player.placement = i + 1;
     });
+    this.turnTimer?.clear();
+    this.state.turnDeadline = 0;
     this.touch();
     this.broadcast("game_over", {
       placements: placements.map((seat, i) => {
@@ -139,7 +300,7 @@ export class LudoRoom extends Room<LudoState> {
     this.clock.setTimeout(() => this.disconnect(), config.finishedCloseMs);
   }
 
-  /** Mirror engine state into the synchronised schema. */
+  /** Mirror engine state into the synchronised schema and arm the next turn. */
   private syncState(): void {
     const game = this.game;
     if (!game) return;
@@ -153,6 +314,7 @@ export class LudoRoom extends Room<LudoState> {
         player.pieces[i] = value;
       });
     }
+    this.scheduleTurn();
     this.touch();
   }
 

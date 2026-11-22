@@ -6,6 +6,7 @@ export class PlayerState extends Schema {
   @type("string") name = "";
   @type("boolean") isBot = false;
   @type("boolean") connected = true;
+  @type("boolean") forfeited = false;
   /** 1 = winner. 0 until the game is over. */
   @type("number") placement = 0;
   @type(["number"]) pieces = new ArraySchema<number>(-1, -1, -1, -1);
@@ -19,6 +20,8 @@ export class LudoState extends Schema {
   @type("number") dice = 0;
   /** Piece indexes the current player may move (only in the move phase). */
   @type(["number"]) legalMoves = new ArraySchema<number>();
+  /** Epoch ms when the current human turn times out (0 when nobody is on the clock). */
+  @type("number") turnDeadline = 0;
   /** Increments on every change so clients can act exactly once per update. */
   @type("number") seq = 0;
   @type([PlayerState]) players = new ArraySchema<PlayerState>();
