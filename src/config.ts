@@ -7,6 +7,8 @@ export const config = {
   turnTimeoutSeconds: 15,
   // Auto-played turns in a row before a player forfeits.
   maxMissedTurns: 3,
+  // Seconds a public lobby waits for real players before bots fill the empty seats.
+  lobbyFillSeconds: 20,
   // Seconds a dropped player has to reconnect before a bot takes the seat.
   reconnectSeconds: 30,
   // Pause before a bot (or a disconnected player's auto-play) acts.

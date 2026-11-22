@@ -14,7 +14,8 @@ export function createGameServer() {
   const gameServer = new Server({
     transport: new WebSocketTransport({ server: httpServer }),
   });
-  gameServer.define("ludo", LudoRoom);
+  // Quick match: joinOrCreate pairs players who asked for the same player count.
+  gameServer.define("ludo", LudoRoom).filterBy(["players"]);
 
   return { app, httpServer, gameServer };
 }

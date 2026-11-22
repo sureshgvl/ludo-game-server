@@ -30,6 +30,7 @@ export class LudoRoom extends Room<LudoState> {
   private hostSession: string | null = null;
   private missedTurns = new Map<number, number>();
   private turnTimer: Delayed | null = null;
+  private lobbyTimer: Delayed | null = null;
   /** Users holding one of their (limited) active-game slots through this room. */
   private heldUsers = new Set<string>();
 
@@ -40,6 +41,10 @@ export class LudoRoom extends Room<LudoState> {
 
     const state = new LudoState();
     state.playerCount = players;
+    if (options.private) {
+      state.isPrivate = true;
+      this.setPrivate(true);
+    }
     this.setState(state);
 
     this.onMessage("roll", (client) => this.handleRoll(client));
@@ -96,6 +101,7 @@ export class LudoRoom extends Room<LudoState> {
     this.state.players.push(player);
     this.seatBySession.set(client.sessionId, seat);
     this.hostSession ??= client.sessionId;
+    this.armLobbyTimer();
     this.touch();
 
     if (this.state.players.length === this.seatList.length) this.startGame();
@@ -166,6 +172,19 @@ export class LudoRoom extends Room<LudoState> {
     this.startGame();
   }
 
+  /** Public lobbies start with bots after a wait; private rooms wait for the host. */
+  private armLobbyTimer(): void {
+    if (this.lobbyTimer || this.game || this.state.isPrivate) return;
+    const ms = config.lobbyFillSeconds * 1000;
+    this.state.fillDeadline = Date.now() + ms;
+    this.lobbyTimer = this.clock.setTimeout(() => {
+      this.lobbyTimer = null;
+      if (this.game || this.state.players.length === 0) return;
+      this.fillWithBots();
+      this.startGame();
+    }, ms);
+  }
+
   private fillWithBots(): void {
     let n = 1;
     for (const seat of this.seatList) {
@@ -181,6 +200,9 @@ export class LudoRoom extends Room<LudoState> {
 
   private startGame(): void {
     if (this.game) return;
+    this.lobbyTimer?.clear();
+    this.lobbyTimer = null;
+    this.state.fillDeadline = 0;
     this.game = new LudoGame(this.seatList);
     this.lock();
     this.syncState();
