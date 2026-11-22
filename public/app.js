@@ -333,6 +333,48 @@
     }
   }
 
+
+  // ---------- 3-game strip: live mini boards ----------
+  function renderStrip() {
+    var box = $("strip");
+    if (!sessions.length) { box.style.display = "none"; return; }
+    box.style.display = "flex";
+    for (var i = 0; i < MAX_GAMES; i++) {
+      var s = sessions[i], el = box.children[i];
+      if (!el) { el = document.createElement("div"); box.appendChild(el); }
+      if (!s) {
+        if (el.dataset.kind !== "empty") { el.dataset.kind = "empty"; el.className = "mini empty"; el.textContent = "Free slot"; el.onclick = function () { active = -1; refresh(); }; }
+        continue;
+      }
+      if (el.dataset.kind !== "game") {
+        el.dataset.kind = "game"; el.textContent = "";
+        var cv = document.createElement("canvas"); cv.width = 180; cv.height = 180;
+        var cap = document.createElement("div"); cap.className = "cap";
+        el.appendChild(cv); el.appendChild(cap);
+      }
+      (function (idx) { el.onclick = function () { active = idx; refresh(); }; })(i);
+      el.className = "mini" + (i === active ? " active" : "") + (s.myTurn && !s.over ? " turn" : "");
+      var c = el.firstChild.getContext("2d"), st = s.state;
+      if (boardCache) c.drawImage(boardCache, 0, 0, 180, 180);
+      if (st && st.phase !== "lobby") {
+        var k = 180 / (15 * CELL);
+        st.players.forEach(function (p) {
+          p.pieces.forEach(function (prog, pi) {
+            var pos = piecePos(p.seat, prog, pi);
+            c.fillStyle = PAL[p.seat][0]; c.strokeStyle = "#fff"; c.lineWidth = 1.5;
+            c.beginPath(); c.arc(pos[0] * CELL * k, pos[1] * CELL * k, 5, 0, Math.PI * 2); c.fill(); c.stroke();
+          });
+        });
+      }
+      var label = "Game " + (i + 1);
+      if (s.over) label += " · over";
+      else if (!st || st.phase === "lobby") label += " · waiting";
+      else label += s.myTurn ? " · YOUR TURN" : " · " + SEAT_NAMES[st.currentSeat] + "'s turn";
+      el.lastChild.textContent = label;
+    }
+  }
+  setInterval(function () { if (!document.hidden) { if (!boardCache) buildBoardCache(); renderStrip(); } }, 300);
+
   var seatCards = {};
   [[0, "row-top"], [1, "row-top"], [3, "row-bottom"], [2, "row-bottom"]].forEach(function (d) {
     var el = document.createElement("div");

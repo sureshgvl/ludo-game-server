@@ -1,6 +1,6 @@
 /* Minimal service worker: lets the game install as an app and open instantly.
    Game traffic (WebSockets) is never cached. App files are fetched fresh when online. */
-const CACHE = "ludo-arena-v2";
+const CACHE = "ludo-arena-v3";
 const SHELL = ["/", "/app.js", "/vendor/colyseus.js", "/vendor/board3d.js", "/manifest.webmanifest", "/icon-192.png", "/icon-512.png"];
 
 self.addEventListener("install", (e) => {
