@@ -1,4 +1,6 @@
-# Render Blueprint: creates the game server (WebSockets + web client) and a Redis-compatible store.
+# Render Blueprint: creates the game server (WebSockets + web client).
+# Redis is optional: without REDIS_URL the 3-game limit is kept in memory, which is fine for ONE instance.
+# Add a REDIS_URL env var in Render if you ever run more than one instance.
 services:
   - type: web
     name: ludo-game-server
@@ -10,11 +12,6 @@ services:
     envVars:
       - key: NODE_VERSION
         value: 22
-      - key: REDIS_URL
-        fromService:
-          type: keyvalue
-          name: ludo-redis
-          property: connectionString
       # URL of the deployed ludo-api, e.g. https://ludo-api.onrender.com
       - key: API_URL
         sync: false
@@ -22,8 +19,3 @@ services:
       - key: INTERNAL_API_KEY
         sync: false
 
-  - type: keyvalue
-    name: ludo-redis
-    plan: free
-    ipAllowList: []
-    maxmemoryPolicy: noeviction

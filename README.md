@@ -87,7 +87,7 @@ Env: `REPORT_RETRIES` (5), `REPORT_RETRY_MS` (2000).
 ## Deploy on Render
 
 1. Deploy `ludo-api` first (see its README) and note its URL.
-2. New → Blueprint → pick this repo. It creates `ludo-game-server` and the `ludo-redis` store.
+2. New → Blueprint → pick this repo. It creates `ludo-game-server` (no Redis needed for a single instance).
 3. When asked, set `API_URL` (the API's `https://…onrender.com` address) and `INTERNAL_API_KEY` (same value as on the API).
 4. Open `https://<your-game-server>.onrender.com/` on two phones to play. In the Tournaments panel enter the API URL.
 
