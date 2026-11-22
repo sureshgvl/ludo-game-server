@@ -68,6 +68,9 @@
     if (code === 4004) return "You are already waiting in that game. Start it, or create a private room for another game.";
     if (code === 4002) return "That room is full.";
     if (code === 4001) return "Missing player id.";
+    if (code === 4005) return "Tournaments are not available on this server right now.";
+    if (code === 4006) return "Register for this tournament first (it must also be running).";
+    if (code === 4007) return "This tournament uses a different number of players per game.";
     if (err && /not found|invalid/i.test(String(err.message))) return "Room not found. Check the code.";
     return (err && err.message) || "Could not join";
   }
@@ -100,6 +103,81 @@
     var code = $("code").value.trim();
     if (!code) { showError("Enter a room code."); return; }
     join(function () { return client.joinById(code, { userId: userId, name: playerName() }); });
+  };
+
+  // ---------- tournaments ----------
+  var apiBase = localStorage.getItem("ludo_api_url") || "";
+  $("apiurl").value = apiBase;
+
+  function esc(v) {
+    return String(v).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  async function api(path, init) {
+    var res = await fetch(apiBase.replace(/\/+$/, "") + "/api" + path, init);
+    var body = await res.json().catch(function () { return {}; });
+    if (!res.ok) throw new Error(body.message || "HTTP " + res.status);
+    return body;
+  }
+
+  async function loadTournaments() {
+    apiBase = $("apiurl").value.trim();
+    localStorage.setItem("ludo_api_url", apiBase);
+    var box = $("tlist");
+    try {
+      var list = await api("/tournaments");
+      if (!list.length) { box.textContent = "No tournaments yet."; return; }
+      box.innerHTML = list.map(function (t) {
+        var btns = "";
+        if (t.status === "scheduled" || t.status === "running") btns += '<button data-act="reg" data-id="' + t.id + '" class="secondary">Register</button> ';
+        if (t.status === "running") btns += '<button data-act="play" data-id="' + t.id + '" data-n="' + t.playersPerGame + '">Play</button> ';
+        btns += '<button data-act="board" data-id="' + t.id + '" class="secondary">Leaderboard</button>';
+        return '<div class="t"><b>' + esc(t.name) + "</b> – " + esc(t.status) + ", " + t.playersPerGame +
+          " players/game, ends " + esc(new Date(t.endsAt).toLocaleString()) +
+          '<div class="row">' + btns + '</div><div id="b-' + t.id + '"></div></div>';
+      }).join("");
+    } catch (err) {
+      box.textContent = "Could not load tournaments: " + err.message;
+    }
+  }
+
+  async function showBoard(id) {
+    var el = document.getElementById("b-" + id);
+    var rows = await api("/tournaments/" + id + "/leaderboard");
+    el.innerHTML = rows.length
+      ? "<table><tr><th>#</th><th>Player</th><th>Pts</th><th>Wins</th><th>Games</th></tr>" +
+        rows.map(function (r) {
+          return "<tr><td>" + r.rank + "</td><td>" + esc(r.name) + "</td><td>" + r.points + "</td><td>" + r.wins + "</td><td>" + r.gamesPlayed + "</td></tr>";
+        }).join("") + "</table>"
+      : "No players yet.";
+  }
+
+  $("loadt").onclick = loadTournaments;
+  $("tlist").onclick = async function (e) {
+    var b = e.target.closest("button");
+    if (!b) return;
+    var id = b.dataset.id;
+    showError("");
+    try {
+      if (b.dataset.act === "board") await showBoard(id);
+      else if (b.dataset.act === "reg") {
+        await api("/tournaments/" + id + "/entries", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ userId: userId, name: playerName() }),
+        });
+        showError("Registered! You can play once the tournament is running.");
+        await showBoard(id);
+      } else if (b.dataset.act === "play") {
+        join(function () {
+          return client.joinOrCreate("ludo", { userId: userId, name: playerName(), players: Number(b.dataset.n), tournamentId: id });
+        });
+      }
+    } catch (err) {
+      showError(err.message);
+    }
   };
 
   // ---------- sessions ----------

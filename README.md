@@ -71,3 +71,15 @@ python3 scripts/browser_e2e.py   # optional: plays a full game in headless Chrom
 ## Related repositories
 
 `ludo-mobile-app`, `ludo-api`, `ludo-admin-panel`
+
+## Tournament games
+
+A room created with `tournamentId` is a counted tournament game:
+
+- Set `API_URL` (e.g. `http://localhost:3000`) and `INTERNAL_API_KEY` (same value as in ludo-api). Without them tournament joins are refused (`4005 tournaments_unavailable`).
+- On join the server asks ludo-api whether the user is registered and the tournament is running (`4006 not_eligible:<reason>`; `4007 wrong_game_size` if the player count differs from the tournament's `playersPerGame`).
+- Tournament lobbies keep waiting until two real players are present, then bots fill the remaining seats. Games with fewer than two real players are never counted.
+- When the game ends the server POSTs the placements to `POST /api/internal/games` (retried on failure; the API ignores repeats of the same `gameId`). A player replaced by a bot after a disconnect is reported as a bot and earns no points.
+- Join options: `{ userId, name, players, tournamentId }`. The web client (`/`) has a Tournaments panel: enter the ludo-api URL, register, play, view the leaderboard.
+
+Env: `REPORT_RETRIES` (5), `REPORT_RETRY_MS` (2000).

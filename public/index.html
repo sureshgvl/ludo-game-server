@@ -41,6 +41,9 @@
     #over .box { background:#fff; padding:22px 26px; border-radius:14px; min-width:260px; }
     #over h2 { margin:0 0 10px; }
     #over ol { padding-left:20px; margin:0 0 14px; }
+    #tlist .t { border:1px solid #ddd; border-radius:8px; padding:8px 10px; margin:8px 0; }
+    #tlist table { border-collapse:collapse; margin-top:6px; font-size:13px; }
+    #tlist td, #tlist th { padding:2px 8px; text-align:left; }
     .hint { font-size:13px; color:var(--muted); }
   </style>
 </head>
@@ -70,6 +73,14 @@
         </div>
         <div class="hint">Quick match waits about 20 seconds for other players, then bots fill the empty seats.</div>
         <div id="error"></div>
+        <details id="tournaments">
+          <summary>Tournaments</summary>
+          <div class="row">
+            <input id="apiurl" size="26" placeholder="ludo-api URL">
+            <button id="loadt" class="secondary">Load tournaments</button>
+          </div>
+          <div id="tlist" class="hint">Enter the ludo-api URL and load the list.</div>
+        </details>
       </div>
 
       <div id="game">
