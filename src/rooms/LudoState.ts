@@ -1,7 +1,25 @@
-import { Schema, type } from "@colyseus/schema";
+import { ArraySchema, Schema, type } from "@colyseus/schema";
+
+export class PlayerState extends Schema {
+  @type("number") seat = 0;
+  @type("string") userId = "";
+  @type("string") name = "";
+  @type("boolean") isBot = false;
+  @type("boolean") connected = true;
+  /** 1 = winner. 0 until the game is over. */
+  @type("number") placement = 0;
+  @type(["number"]) pieces = new ArraySchema<number>(-1, -1, -1, -1);
+}
 
 export class LudoState extends Schema {
-  @type("string") phase: "waiting" | "playing" | "finished" = "waiting";
-  @type("number") currentSeat = 0;
-  @type("number") lastDice = 0;
+  /** lobby | roll | move | finished */
+  @type("string") phase = "lobby";
+  @type("number") playerCount = 2;
+  @type("number") currentSeat = -1;
+  @type("number") dice = 0;
+  /** Piece indexes the current player may move (only in the move phase). */
+  @type(["number"]) legalMoves = new ArraySchema<number>();
+  /** Increments on every change so clients can act exactly once per update. */
+  @type("number") seq = 0;
+  @type([PlayerState]) players = new ArraySchema<PlayerState>();
 }

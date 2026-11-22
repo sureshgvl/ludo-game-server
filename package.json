@@ -18,6 +18,7 @@
     "@colyseus/core": "^0.16.0",
     "@colyseus/schema": "^3.0.0",
     "@colyseus/ws-transport": "^0.16.0",
+    "colyseus.js": "^0.16.22",
     "express": "^4.19.2"
   },
   "devDependencies": {
