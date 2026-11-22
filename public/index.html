@@ -2,106 +2,187 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Ludo</title>
-  <link rel="icon" href="data:,">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#2b1055">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Ludo Arena</title>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" type="image/png" href="/icon-192.png">
+  <link rel="apple-touch-icon" href="/icon-192.png">
   <style>
-    :root { --bg:#f4f1ea; --ink:#1f2430; --muted:#6b7280; --card:#fff; --line:#e2ddd0; --accent:#3f51b5; }
-    * { box-sizing: border-box; }
-    body { margin:0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--ink); }
-    header { display:flex; align-items:center; gap:12px; padding:10px 16px; background:var(--card); border-bottom:1px solid var(--line); }
-    header h1 { font-size:18px; margin:0; }
-    header .who { margin-left:auto; color:var(--muted); font-size:13px; }
-    #tabs { display:flex; gap:6px; padding:10px 16px 0; flex-wrap:wrap; }
-    .tab { border:1px solid var(--line); background:#ebe7da; padding:7px 12px; border-radius:8px 8px 0 0; cursor:pointer; font-size:14px; }
-    .tab.active { background:var(--card); border-bottom-color:var(--card); font-weight:600; }
-    .tab .dot { display:inline-block; width:9px; height:9px; border-radius:50%; background:#ef6c00; margin-left:6px; }
-    main { padding:0 16px 24px; }
-    .panel { background:var(--card); border:1px solid var(--line); border-radius:0 10px 10px 10px; padding:16px; }
-    .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin:8px 0; }
-    label { font-size:13px; color:var(--muted); }
-    input, select { padding:8px 10px; border:1px solid #cfc9b8; border-radius:8px; font-size:15px; }
-    button { padding:9px 14px; border:0; border-radius:8px; background:var(--accent); color:#fff; font-size:15px; cursor:pointer; }
-    button.secondary { background:#e8e4d6; color:var(--ink); }
-    button:disabled { opacity:.45; cursor:not-allowed; }
-    #error { color:#b3261e; min-height:20px; margin-top:8px; font-size:14px; }
-    #game { display:none; gap:18px; flex-wrap:wrap; align-items:flex-start; }
-    #boardwrap { flex:1 1 360px; max-width:620px; }
-    canvas { width:100%; height:auto; border-radius:10px; border:1px solid var(--line); touch-action:manipulation; background:#fff; }
-    #side { flex:1 1 260px; max-width:360px; }
-    #status { font-size:17px; font-weight:600; min-height:46px; }
-    #dice { font-size:54px; line-height:1; margin:6px 0; }
-    .players { margin:10px 0; display:flex; flex-direction:column; gap:6px; }
-    .pl { display:flex; align-items:center; gap:8px; padding:6px 8px; border:1px solid var(--line); border-radius:8px; font-size:14px; }
-    .pl.turn { border-color:var(--accent); background:#eef0fb; }
-    .chip { width:14px; height:14px; border-radius:50%; flex:none; border:1px solid rgba(0,0,0,.35); }
-    .tag { font-size:11px; background:#eee; border-radius:6px; padding:1px 6px; color:#555; }
-    #log { font-size:13px; color:var(--muted); max-height:120px; overflow:auto; margin-top:8px; }
-    #over { position:fixed; inset:0; background:rgba(0,0,0,.55); display:none; align-items:center; justify-content:center; z-index:5; }
-    #over .box { background:#fff; padding:22px 26px; border-radius:14px; min-width:260px; }
-    #over h2 { margin:0 0 10px; }
-    #over ol { padding-left:20px; margin:0 0 14px; }
-    #tlist .t { border:1px solid #ddd; border-radius:8px; padding:8px 10px; margin:8px 0; }
-    #tlist table { border-collapse:collapse; margin-top:6px; font-size:13px; }
-    #tlist td, #tlist th { padding:2px 8px; text-align:left; }
+    :root {
+      --ink:#fff; --muted:#b9b2d9; --card:rgba(255,255,255,.1); --line:rgba(255,255,255,.18);
+      --gold:#ffcb2f; --gold2:#ff9f1c; --accent:#7c4dff;
+      --red:#e53935; --green:#2e9d4a; --yellow:#f9c70c; --blue:#1e6fe0;
+    }
+    * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+    html, body { margin:0; height:100%; overscroll-behavior:none; }
+    body {
+      font-family: "Trebuchet MS", system-ui, -apple-system, "Segoe UI", sans-serif; color:var(--ink);
+      background: radial-gradient(1200px 700px at 50% -10%, #5b2fc9 0%, #2b1055 45%, #170a33 100%) fixed;
+      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+      user-select:none; -webkit-user-select:none; touch-action:manipulation;
+    }
+    #app { max-width:560px; margin:0 auto; padding:10px 12px 18px; min-height:100%; }
+
+    /* header */
+    header { display:flex; align-items:center; gap:10px; padding:4px 2px 10px; }
+    .logo { font-weight:900; font-size:26px; letter-spacing:2px; line-height:1;
+      background:linear-gradient(180deg,#fff2b0,var(--gold) 45%,var(--gold2)); -webkit-background-clip:text; background-clip:text; color:transparent;
+      filter:drop-shadow(0 2px 0 rgba(0,0,0,.35)); }
+    .logo small { display:block; font-size:10px; letter-spacing:5px; color:var(--muted); -webkit-text-fill-color:var(--muted); margin-top:2px; }
+    header .who { margin-left:auto; color:var(--muted); font-size:12px; }
+    .iconbtn { width:38px; height:38px; border-radius:50%; border:1px solid var(--line); background:var(--card); color:#fff; font-size:18px; padding:0; }
+
+    /* tabs */
+    #tabs { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px; }
+    .tab { border:1px solid var(--line); background:var(--card); padding:6px 12px; border-radius:999px; font-size:13px; cursor:pointer; white-space:nowrap; }
+    .tab.active { background:linear-gradient(180deg,var(--gold),var(--gold2)); color:#3a2300; font-weight:800; border-color:transparent; }
+    .tab .dot { display:inline-block; width:9px; height:9px; border-radius:50%; background:#ff5252; margin-left:6px; box-shadow:0 0 8px #ff5252; }
+
+    /* generic */
+    .panel { background:var(--card); border:1px solid var(--line); border-radius:20px; padding:16px; backdrop-filter:blur(6px); }
+    .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin:10px 0; }
+    label { font-size:12px; color:var(--muted); letter-spacing:1px; text-transform:uppercase; }
+    input, select {
+      padding:12px 14px; border:1px solid var(--line); border-radius:14px; font-size:16px; color:#fff; background:rgba(0,0,0,.28); outline:none; font-family:inherit; }
+    input::placeholder { color:#9a93c4; }
+    select option { color:#222; }
+    button { font-family:inherit; cursor:pointer; }
+    .btn { padding:13px 18px; border:0; border-radius:16px; font-size:16px; font-weight:800; color:#3a2300; letter-spacing:.5px;
+      background:linear-gradient(180deg,#ffe27a,var(--gold) 50%,var(--gold2)); box-shadow:0 5px 0 #b36b00, 0 10px 18px rgba(0,0,0,.35); transition:transform .08s, box-shadow .08s; }
+    .btn:active { transform:translateY(4px); box-shadow:0 1px 0 #b36b00, 0 4px 8px rgba(0,0,0,.35); }
+    .btn.secondary { color:#fff; background:linear-gradient(180deg,#8a63ff,#5a34d6); box-shadow:0 5px 0 #34188f, 0 10px 18px rgba(0,0,0,.35); }
+    .btn.secondary:active { box-shadow:0 1px 0 #34188f, 0 4px 8px rgba(0,0,0,.35); }
+    .btn.ghost { color:#fff; background:var(--card); box-shadow:none; border:1px solid var(--line); font-weight:600; }
+    .btn:disabled { opacity:.45; cursor:not-allowed; }
+    .btn.big { width:100%; font-size:20px; padding:16px; }
+    #error { color:#ff9a9a; min-height:20px; margin-top:6px; font-size:14px; text-align:center; }
     .hint { font-size:13px; color:var(--muted); }
+
+    /* lobby */
+    #lobby { display:none; }
+    .hero { text-align:center; padding:6px 0 14px; }
+    .pawns { display:flex; justify-content:center; gap:10px; margin:2px 0 10px; }
+    .pawns i { width:30px; height:42px; display:block; border-radius:50% 50% 40% 40% / 38% 38% 62% 62%; position:relative;
+      box-shadow:inset -5px -6px 8px rgba(0,0,0,.28), inset 4px 4px 7px rgba(255,255,255,.45), 0 6px 8px rgba(0,0,0,.4); }
+    .pawns i:nth-child(1){ background:var(--red); } .pawns i:nth-child(2){ background:var(--green); }
+    .pawns i:nth-child(3){ background:var(--yellow); } .pawns i:nth-child(4){ background:var(--blue); }
+    .field { display:flex; flex-direction:column; gap:6px; flex:1 1 140px; }
+    details { margin-top:14px; border-top:1px solid var(--line); padding-top:10px; }
+    summary { cursor:pointer; font-weight:800; letter-spacing:1px; color:var(--gold); }
+    #tlist .t { border:1px solid var(--line); border-radius:14px; padding:10px 12px; margin:10px 0; background:rgba(0,0,0,.2); }
+    #tlist table { border-collapse:collapse; margin-top:6px; font-size:13px; width:100%; }
+    #tlist td, #tlist th { padding:3px 6px; text-align:left; }
+    #tlist .btn { padding:8px 12px; font-size:13px; box-shadow:0 3px 0 #b36b00; }
+    #tlist .btn.secondary { box-shadow:0 3px 0 #34188f; }
+
+    /* game */
+    #game { display:none; flex-direction:column; gap:10px; }
+    #players-list { display:flex; gap:6px; }
+    .pl { flex:1 1 0; min-width:0; display:flex; flex-direction:column; align-items:center; gap:2px; padding:7px 4px 6px; border-radius:14px;
+      background:var(--card); border:2px solid transparent; font-size:12px; position:relative; }
+    .pl .av { width:30px; height:30px; border-radius:50%; border:3px solid #fff; box-shadow:0 2px 6px rgba(0,0,0,.4); }
+    .pl .nm { max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:700; }
+    .pl .sub { color:var(--muted); font-size:11px; }
+    .pl.turn { border-color:var(--gold); background:rgba(255,203,47,.16); box-shadow:0 0 14px rgba(255,203,47,.45); }
+    .pl.off { opacity:.55; }
+    #boardwrap { position:relative; border-radius:18px; padding:7px; background:linear-gradient(180deg,#8a63ff,#3c1b9a);
+      box-shadow:0 10px 0 #20086b, 0 18px 28px rgba(0,0,0,.5); }
+    canvas#board { width:100%; height:auto; display:block; border-radius:12px; background:#fff; touch-action:manipulation; }
+    #timerbar { height:6px; border-radius:6px; background:rgba(255,255,255,.15); overflow:hidden; }
+    #timerfill { height:100%; width:0; background:linear-gradient(90deg,#69f0ae,var(--gold),#ff5252); border-radius:6px; }
+    #status { text-align:center; font-size:16px; font-weight:800; min-height:44px; display:flex; align-items:center; justify-content:center; padding:0 6px; }
+    #controls { display:flex; align-items:center; justify-content:center; gap:16px; }
+
+    /* the dice (it is also the roll button) */
+    #roll { width:86px; height:86px; padding:0; border:0; border-radius:20px; position:relative; background:linear-gradient(145deg,#fff,#d9d4ee);
+      box-shadow:0 6px 0 #8f86bd, 0 12px 20px rgba(0,0,0,.45), inset 0 -4px 8px rgba(0,0,0,.12); }
+    #roll .pips { position:absolute; inset:11px; display:grid; grid-template-columns:repeat(3,1fr); grid-template-rows:repeat(3,1fr); }
+    #roll .pip { margin:auto; width:15px; height:15px; border-radius:50%; background:transparent; }
+    #roll .pip.on { background:radial-gradient(circle at 35% 30%, #5d5d75, #14141f); box-shadow:inset 0 -1px 2px rgba(255,255,255,.25); }
+    #roll.six .pip.on, #roll .pip.on.red { background:radial-gradient(circle at 35% 30%, #ff6b6b, #b00020); }
+    #roll:disabled { opacity:1; filter:saturate(.7) brightness(.85); cursor:default; }
+    #roll.ready { animation:pulse 1s ease-in-out infinite; }
+    #roll.rolling { animation:shake .12s linear infinite; }
+    @keyframes pulse { 0%,100% { transform:scale(1); box-shadow:0 6px 0 #8f86bd, 0 0 0 0 rgba(255,203,47,.8), 0 12px 20px rgba(0,0,0,.45);} 50% { transform:scale(1.07); box-shadow:0 6px 0 #8f86bd, 0 0 0 12px rgba(255,203,47,0), 0 12px 20px rgba(0,0,0,.45);} }
+    @keyframes shake { 0% { transform:rotate(-10deg) translateY(-3px);} 50% { transform:rotate(9deg) translateY(2px);} 100% { transform:rotate(-8deg) translateY(-2px);} }
+    #roomline { text-align:center; }
+    #log { font-size:12px; color:var(--muted); text-align:center; min-height:16px; }
+
+    /* game over */
+    #over { position:fixed; inset:0; background:rgba(10,4,30,.78); display:none; align-items:center; justify-content:center; z-index:20; padding:20px; }
+    #over .box { background:linear-gradient(180deg,#5b2fc9,#2b1055); border:1px solid var(--line); padding:22px 24px; border-radius:24px; width:100%; max-width:360px; text-align:center; box-shadow:0 20px 50px rgba(0,0,0,.6); }
+    #over h2 { margin:0 0 4px; font-size:28px; color:var(--gold); }
+    #over .sub { color:var(--muted); margin-bottom:12px; }
+    #ranking { list-style:none; padding:0; margin:0 0 16px; text-align:left; }
+    #ranking li { display:flex; align-items:center; gap:10px; padding:9px 12px; margin:6px 0; border-radius:14px; background:rgba(255,255,255,.1); font-weight:700; }
+    #ranking li.me { background:rgba(255,203,47,.22); outline:2px solid var(--gold); }
+    #ranking .medal { font-size:22px; width:28px; text-align:center; }
+    #ranking .dotc { width:14px; height:14px; border-radius:50%; border:2px solid #fff; }
+    #confetti { position:fixed; inset:0; width:100%; height:100%; pointer-events:none; z-index:30; }
   </style>
 </head>
 <body>
-  <header>
-    <h1>Ludo</h1>
-    <span class="hint">Play up to 3 games at once</span>
-    <span class="who" id="who"></span>
-  </header>
-  <div id="tabs"></div>
-  <main>
-    <div class="panel">
-      <div id="lobby">
-        <div class="row">
-          <label for="name">Your name</label>
-          <input id="name" maxlength="20" placeholder="Player">
-          <label for="players">Players</label>
-          <select id="players"><option value="2">2 players</option><option value="4">4 players</option></select>
+  <div id="app">
+    <header>
+      <div class="logo">LUDO<small>ARENA</small></div>
+      <span class="who" id="who"></span>
+      <button class="iconbtn" id="mute" title="Sound on/off">🔊</button>
+    </header>
+    <div id="tabs"></div>
+
+    <div id="lobby">
+      <div class="panel">
+        <div class="hero">
+          <div class="pawns"><i></i><i></i><i></i><i></i></div>
+          <div class="hint">Roll. Race. Capture. Reach home first.</div>
         </div>
         <div class="row">
-          <button id="quick">Quick match</button>
-          <button id="private" class="secondary">Create private room</button>
+          <div class="field"><label for="name">Your name</label><input id="name" maxlength="20" placeholder="Player" autocomplete="off"></div>
+          <div class="field"><label for="players">Players</label>
+            <select id="players"><option value="2">2 players</option><option value="4">4 players</option></select></div>
+        </div>
+        <button class="btn big" id="quick">▶ PLAY NOW</button>
+        <div class="row">
+          <button class="btn secondary" id="private" style="flex:1">Private room</button>
         </div>
         <div class="row">
-          <input id="code" placeholder="Room code" size="14">
-          <button id="join" class="secondary">Join with code</button>
+          <input id="code" placeholder="Room code" style="flex:1 1 120px;min-width:0">
+          <button class="btn ghost" id="join">Join with code</button>
         </div>
-        <div class="hint">Quick match waits about 20 seconds for other players, then bots fill the empty seats.</div>
+        <div class="hint">Play Now waits about 20 seconds for other players, then bots fill the empty seats.</div>
         <div id="error"></div>
         <details id="tournaments">
-          <summary>Tournaments</summary>
+          <summary>🏆 TOURNAMENTS</summary>
           <div class="row">
-            <input id="apiurl" size="26" placeholder="ludo-api URL">
-            <button id="loadt" class="secondary">Load tournaments</button>
+            <input id="apiurl" placeholder="ludo-api URL" style="flex:1 1 180px;min-width:0">
+            <button id="loadt" class="btn ghost">Load</button>
           </div>
           <div id="tlist" class="hint">Enter the ludo-api URL and load the list.</div>
         </details>
       </div>
-
-      <div id="game">
-        <div id="boardwrap"><canvas id="board" width="600" height="600"></canvas></div>
-        <div id="side">
-          <div id="status"></div>
-          <div id="dice"></div>
-          <div class="row">
-            <button id="roll">Roll dice</button>
-            <button id="start" class="secondary">Start now</button>
-            <button id="leave" class="secondary">Leave game</button>
-          </div>
-          <div class="hint" id="roomline"></div>
-          <div class="players" id="players-list"></div>
-          <div id="log"></div>
-        </div>
-      </div>
     </div>
-  </main>
 
-  <div id="over"><div class="box"><h2>Game over</h2><ol id="ranking"></ol><button id="closeGame">Close game</button></div></div>
+    <div id="game">
+      <div id="players-list"></div>
+      <div id="boardwrap"><canvas id="board" width="900" height="900"></canvas></div>
+      <div id="timerbar"><div id="timerfill"></div></div>
+      <div id="status"></div>
+      <div id="controls">
+        <button id="leave" class="btn ghost" style="padding:10px 14px;font-size:14px">Leave</button>
+        <button id="roll" class="ready" aria-label="Roll the dice"><div class="pips"></div></button>
+        <button id="start" class="btn secondary" style="padding:10px 14px;font-size:14px">Start now</button>
+      </div>
+      <div class="hint" id="roomline"></div>
+      <div id="log"></div>
+    </div>
+  </div>
+
+  <div id="over"><div class="box"><h2 id="overtitle">Game over</h2><div class="sub" id="oversub"></div><ol id="ranking"></ol><button class="btn big" id="closeGame">Close game</button></div></div>
+  <canvas id="confetti"></canvas>
 
   <script src="/vendor/colyseus.js"></script>
   <script src="/app.js"></script>

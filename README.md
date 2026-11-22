@@ -92,3 +92,7 @@ Env: `REPORT_RETRIES` (5), `REPORT_RETRY_MS` (2000).
 4. Open `https://<your-game-server>.onrender.com/` on two phones to play. In the Tournaments panel enter the API URL.
 
 Free instances sleep when idle, which drops live games; use a paid instance for real play.
+
+## Web client (works like an app on phones)
+
+The page served at `/` is a mobile-first game client: coloured board, animated dice, hopping pawns, sound effects (mute button top right), vibration on capture, and confetti when you win. It is also a PWA: open the address in Chrome on Android and choose **Add to Home screen** (Safari on iPhone: Share → Add to Home Screen). It then opens full screen with its own icon.

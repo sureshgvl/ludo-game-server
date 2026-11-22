@@ -58,7 +58,7 @@ with sync_playwright() as p:
         if i["seq"] != last_seq and i["myTurn"]:
             last_seq = i["seq"]
             if i["phase"] == "roll":
-                page.click("#roll")
+                page.click("#roll", force=True)
                 rolls += 1
             elif i["phase"] == "move":
                 click_piece(i["legal"][0])
