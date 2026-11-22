@@ -19,6 +19,8 @@ export const config = {
   reconnectSeconds: num("RECONNECT_SECONDS", 30),
   // Pause before a bot (or a disconnected player's auto-play) acts.
   botDelayMs: num("BOT_DELAY_MS", 900),
+  // When true the server plays a human's move for them if only one piece can move. Off: the player taps it.
+  autoSingleMove: (process.env.AUTO_SINGLE_MOVE ?? "false") === "true",
   // Pause before the server plays a forced move (only one legal piece).
   autoMoveDelayMs: num("AUTO_MOVE_DELAY_MS", 450),
   // How long a finished room stays open so clients can read the result.

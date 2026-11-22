@@ -134,7 +134,12 @@
 
   $("quick").onclick = function () {
     join(function () {
-      return client.joinOrCreate("ludo", { userId: userId, name: playerName(), players: Number($("players").value) });
+      return client.joinOrCreate("ludo", { userId: userId, name: playerName(), players: Number($("players").value), waitForHumans: true });
+    });
+  };
+  $("bots").onclick = function () {
+    join(function () {
+      return client.create("ludo", { userId: userId, name: playerName(), players: Number($("players").value), vsBots: true });
     });
   };
   $("private").onclick = function () {
@@ -226,7 +231,7 @@
   // ---------- sessions ----------
   function addSession(room) {
     var s = { room: room, state: null, mySeat: -1, log: [], over: null, closed: false, myTurn: false,
-              anim: {}, rollAnimUntil: 0, turnStart: 0, turnDeadline: 0, lastSeq: -1, prevPieces: null };
+              anim: {}, rollAnimUntil: 0, fx: [], turnStart: 0, turnDeadline: 0, lastSeq: -1, prevPieces: null };
     sessions.push(s);
     room.onStateChange(function (state) {
       var wasMyTurn = s.myTurn;
@@ -242,8 +247,8 @@
       refresh();
     });
     room.onMessage("rolled", function (m) {
-      s.rollAnimUntil = Date.now() + 650;
-      if (s === current()) sfx.roll();
+      s.rollAnimUntil = Date.now() + 1000;
+      if (s === current()) { sfx.roll(); placeDie(s, m.seat); setCube(m.dice, true, s); }
       pushLog(s, SEAT_NAMES[m.seat] + " rolled " + m.dice + (m.passed ? (m.reason === "three-sixes" ? " (three sixes, turn lost)" : " (no move)") : ""));
     });
     room.onMessage("moved", function (m) {
@@ -321,32 +326,63 @@
     }
   }
 
-  var pipEls = null;
-  function buildPips() {
-    var box = $("roll").querySelector(".pips");
-    for (var i = 0; i < 9; i++) { var d = document.createElement("div"); d.className = "pip"; box.appendChild(d); }
-    pipEls = box.children;
-  }
-  buildPips();
+  var seatCards = {};
+  [[0, "row-top"], [1, "row-top"], [3, "row-bottom"], [2, "row-bottom"]].forEach(function (d) {
+    var el = document.createElement("div");
+    el.className = "seat";
+    el.dataset.seat = d[0];
+    el.innerHTML = '<div class="av"></div><div class="info"><div class="nm"></div><div class="sub"></div></div><div class="slot"></div>';
+    $(d[1]).appendChild(el);
+    seatCards[d[0]] = { el: el, av: el.querySelector(".av"), nm: el.querySelector(".nm"), sub: el.querySelector(".sub") };
+  });
 
-  function showDie(v) {
-    var on = PIPS[v] || [];
-    for (var i = 0; i < 9; i++) pipEls[i].className = "pip" + (on.indexOf(i) >= 0 ? " on" : "");
-    $("roll").classList.toggle("six", v === 6);
+  // ----- 3D dice: a cube that rolls to the number the server rolled -----
+  var CUBE_ROT = { 1: [0, 0], 2: [0, -90], 3: [-90, 0], 4: [90, 0], 5: [0, 90], 6: [0, 180] };
+  var cubeEl = $("roll").querySelector(".cube");
+  var cubeSpin = 0, dieOwner = null, dieVal = 0;
+  (function buildCube() {
+    for (var f = 1; f <= 6; f++) {
+      var face = document.createElement("div");
+      face.className = "face f" + f;
+      for (var i = 0; i < 9; i++) {
+        var pip = document.createElement("div");
+        pip.className = "pip" + (PIPS[f].indexOf(i) >= 0 ? " on" : "");
+        face.appendChild(pip);
+      }
+      cubeEl.appendChild(face);
+    }
+  })();
+
+  function setCube(v, animate, s) {
+    if (!CUBE_ROT[v]) return;
+    cubeSpin += animate ? 2 : 0;
+    cubeEl.classList.toggle("anim", !!animate);
+    var rx = CUBE_ROT[v][0] + 360 * cubeSpin, ry = CUBE_ROT[v][1] + 360 * cubeSpin;
+    cubeEl.style.transform = "rotateX(" + rx + "deg) rotateY(" + ry + "deg)";
+    dieOwner = s || dieOwner;
+    dieVal = v;
   }
 
-  var lastDieFrame = 0;
+  /** The one die sits next to whoever is rolling. */
+  function placeDie(s, seat) {
+    var slot = document.querySelector('.seat[data-seat="' + seat + '"] .slot');
+    var r = $("roll");
+    if (slot && r.parentNode !== slot) slot.appendChild(r);
+  }
+
   function updateDie(s) {
     var st = s.state, r = $("roll");
     if (!st) return;
+    if (st.phase === "lobby") { r.style.visibility = "hidden"; return; }
+    r.style.visibility = "visible";
+    if (st.currentSeat >= 0) placeDie(s, st.currentSeat);
     var rolling = Date.now() < s.rollAnimUntil;
-    r.classList.toggle("rolling", rolling);
-    if (rolling) {
-      if (Date.now() - lastDieFrame > 70) { lastDieFrame = Date.now(); showDie(1 + Math.floor(Math.random() * 6)); }
-    } else {
-      showDie(st.dice || 0);
+    // switching tabs or reconnecting: show the current number straight away
+    if (dieOwner !== s || (!rolling && st.dice > 0 && dieVal !== st.dice)) {
+      if (st.dice > 0) setCube(st.dice, false, s); else { dieOwner = s; }
     }
     r.classList.toggle("ready", s.myTurn && st.phase === "roll" && !rolling);
+    r.classList.toggle("idle", !s.myTurn);
   }
 
   function renderGame(s) {
@@ -357,7 +393,7 @@
     if (phase === "lobby") {
       var secs = st.fillDeadline ? Math.max(0, Math.ceil((st.fillDeadline - Date.now()) / 1000)) : 0;
       lines = "Waiting for players (" + st.players.length + "/" + st.playerCount + ")" +
-        (st.isPrivate ? "" : secs ? " – bots join in " + secs + "s" : "");
+        (st.isPrivate ? " – share the room code" : secs ? " – computer joins in " + secs + "s" : "");
     } else if (phase === "finished") {
       lines = "Game finished";
     } else if (s.myTurn) {
@@ -371,28 +407,20 @@
     }
     $("status").textContent = lines;
     $("roll").disabled = !(s.myTurn && phase === "roll");
-    $("roll").style.visibility = phase === "lobby" ? "hidden" : "visible";
-    $("start").style.visibility = phase === "lobby" ? "visible" : "hidden";
+    $("start").style.display = phase === "lobby" && !st.isPrivate ? "inline-block" : (phase === "lobby" ? "inline-block" : "none");
     $("roomline").textContent = "Room code: " + s.room.roomId + (st.isPrivate ? " (share it with friends)" : "") +
       (s.mySeat >= 0 ? " – you are " + SEAT_NAMES[s.mySeat] : "");
 
-    var list = $("players-list");
-    list.textContent = "";
-    st.players.slice().sort(function (a, b) { return a.seat - b.seat; }).forEach(function (p) {
-      var row = document.createElement("div");
-      row.className = "pl" + (p.seat === st.currentSeat ? " turn" : "") + ((!p.connected && !p.isBot) || p.forfeited ? " off" : "");
-      var av = document.createElement("div");
-      av.className = "av";
-      av.style.background = "radial-gradient(circle at 35% 30%, " + PAL[p.seat][1] + ", " + PAL[p.seat][0] + " 55%, " + PAL[p.seat][2] + ")";
-      var name = document.createElement("div");
-      name.className = "nm";
-      name.textContent = (p.userId === userId ? "You" : p.name);
-      var sub = document.createElement("div");
-      sub.className = "sub";
+    [0, 1, 3, 2].forEach(function (seat) {
+      var card = seatCards[seat];
+      var p = st.players.find(function (q) { return q.seat === seat; });
+      card.el.className = "seat" + (seat === 1 || seat === 2 ? " right" : "") + (!p ? " empty" : "") +
+        (p && seat === st.currentSeat ? " turn" : "") + (p && ((!p.connected && !p.isBot) || p.forfeited) ? " off" : "");
+      if (!p) return;
+      card.av.style.background = "radial-gradient(circle at 35% 30%, " + PAL[seat][1] + ", " + PAL[seat][0] + " 55%, " + PAL[seat][2] + ")";
+      card.nm.textContent = p.userId === userId ? "You" : p.name;
       var home = p.pieces.filter(function (v) { return v === 56; }).length;
-      sub.textContent = p.forfeited ? "out" : (p.isBot ? "🤖 " : "") + home + "/4 home";
-      row.appendChild(av); row.appendChild(name); row.appendChild(sub);
-      list.appendChild(row);
+      card.sub.textContent = p.forfeited ? "out" : (p.isBot ? "🤖 " : "") + home + "/4 home";
     });
 
     var last = s.log.length ? s.log[s.log.length - 1] : "";
@@ -691,14 +719,25 @@
         var key = p.seat + ":" + idx;
         var a = s.anim[key];
         if (!a) a = s.anim[key] = { shown: target };
-        if (target < 0 || a.shown < 0 || target < a.shown) {
-          a.shown = target;                         // leaving/returning to the yard: jump
+        if (target < 0 && a.shown >= 0 && !a.fly) {
+          // captured: slide back to the yard in an arc, with a puff where it was taken
+          var from = piecePos(p.seat, a.shown, idx);
+          a.fly = { from: from, t: 0 };
+          s.fx.push({ x: from[0], y: from[1], t: 0, col: PAL[p.seat][0] });
+          a.shown = target;
+        } else if (target >= 0 && a.shown < 0) {
+          a.shown = target;                         // out of the yard: pop in
+          a.pop = 0;
+        } else if (target < 0 || target < a.shown) {
+          a.shown = target;
         } else if (a.shown < target) {
           var before = Math.floor(a.shown);
           a.shown = Math.min(target, a.shown + dt * 10);   // about 10 squares per second
           if (Math.floor(a.shown) !== before) stepped = true;
         }
-        pieces.push({ seat: p.seat, idx: idx, target: target, shown: a.shown, moving: a.shown < target });
+        if (a.fly) { a.fly.t += dt / 0.55; if (a.fly.t >= 1) a.fly = null; }
+        if (a.pop !== undefined) { a.pop += dt / 0.3; if (a.pop >= 1) a.pop = undefined; }
+        pieces.push({ seat: p.seat, idx: idx, target: target, shown: a.shown, moving: a.shown < target, fly: a.fly, pop: a.pop });
       });
     });
     if (stepped && now - lastStepSound > 70) { lastStepSound = now; sfx.step(); }
@@ -707,6 +746,11 @@
     var spots = {};
     pieces.forEach(function (pc) {
       pc.pos = piecePos(pc.seat, pc.shown, pc.idx);
+      if (pc.fly) {
+        var e = 1 - Math.pow(1 - pc.fly.t, 3), home = pc.pos;
+        pc.pos = [pc.fly.from[0] + (home[0] - pc.fly.from[0]) * e, pc.fly.from[1] + (home[1] - pc.fly.from[1]) * e];
+        pc.flyLift = Math.sin(pc.fly.t * Math.PI) * 1.6;
+      }
       var key = pc.shown < 0 ? "y" + pc.seat + pc.idx : pc.pos[0].toFixed(2) + "," + pc.pos[1].toFixed(2);
       (spots[key] = spots[key] || []).push(pc);
     });
@@ -737,7 +781,27 @@
       }
       var frac = pc.moving ? pc.shown - Math.floor(pc.shown) : 0;
       var lift = pc.moving ? Math.sin(frac * Math.PI) : (legal ? pulse * 0.25 : 0);
-      pawn(pc.x, pc.y, pc.r, pc.seat, lift, legal);
+      if (pc.flyLift) lift = pc.flyLift;
+      var rr = pc.pop !== undefined ? pc.r * (1 + 0.35 * Math.sin(pc.pop * Math.PI)) : pc.r;
+      pawn(pc.x, pc.y, rr, pc.seat, lift, legal);
+    });
+    // capture puffs
+    s.fx = s.fx.filter(function (f) { return f.t < 1; });
+    s.fx.forEach(function (f) {
+      f.t = Math.min(1, f.t + dt / 0.5);
+      var u = f.t;
+      ctx.beginPath();
+      ctx.arc(f.x * CELL, f.y * CELL, CELL * (0.3 + u * 0.9), 0, Math.PI * 2);
+      ctx.strokeStyle = "rgba(255,255,255," + (0.9 * (1 - u)) + ")";
+      ctx.lineWidth = 6 * (1 - u) + 1;
+      ctx.stroke();
+      for (var k = 0; k < 6; k++) {
+        var ang = k * Math.PI / 3 + u, d = CELL * (0.2 + u * 0.9);
+        ctx.beginPath();
+        ctx.arc(f.x * CELL + Math.cos(ang) * d, f.y * CELL + Math.sin(ang) * d, Math.max(0, CELL * 0.1 * (1 - u)), 0, Math.PI * 2);
+        ctx.fillStyle = f.col;
+        ctx.fill();
+      }
     });
   }
 

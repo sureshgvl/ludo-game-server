@@ -80,35 +80,45 @@
     #tlist .btn.secondary { box-shadow:0 3px 0 #34188f; }
 
     /* game */
-    #game { display:none; flex-direction:column; gap:10px; }
-    #players-list { display:flex; gap:6px; }
-    .pl { flex:1 1 0; min-width:0; display:flex; flex-direction:column; align-items:center; gap:2px; padding:7px 4px 6px; border-radius:14px;
-      background:var(--card); border:2px solid transparent; font-size:12px; position:relative; }
-    .pl .av { width:30px; height:30px; border-radius:50%; border:3px solid #fff; box-shadow:0 2px 6px rgba(0,0,0,.4); }
-    .pl .nm { max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:700; }
-    .pl .sub { color:var(--muted); font-size:11px; }
-    .pl.turn { border-color:var(--gold); background:rgba(255,203,47,.16); box-shadow:0 0 14px rgba(255,203,47,.45); }
-    .pl.off { opacity:.55; }
-    #boardwrap { position:relative; border-radius:18px; padding:7px; background:linear-gradient(180deg,#8a63ff,#3c1b9a);
-      box-shadow:0 10px 0 #20086b, 0 18px 28px rgba(0,0,0,.5); }
-    canvas#board { width:100%; height:auto; display:block; border-radius:12px; background:#fff; touch-action:manipulation; }
+    #game { display:none; flex-direction:column; gap:8px; }
+    .seatrow { display:flex; gap:8px; }
+    .seat { flex:1 1 0; min-width:0; min-height:74px; display:flex; align-items:center; gap:8px; padding:8px 10px; border-radius:18px;
+      background:var(--card); border:2px solid transparent; transition:border-color .2s, background .2s, box-shadow .2s; }
+    .seat.right { flex-direction:row-reverse; text-align:right; }
+    .seat.empty { visibility:hidden; }
+    .seat .av { width:44px; height:44px; flex:none; border-radius:50%; border:3px solid #fff; box-shadow:0 3px 8px rgba(0,0,0,.45), inset 0 -6px 10px rgba(0,0,0,.25); }
+    .seat .info { flex:1; min-width:0; }
+    .seat .nm { font-weight:800; font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .seat .sub { color:var(--muted); font-size:11px; margin-top:1px; white-space:nowrap; }
+    .seat .slot { width:58px; height:58px; flex:none; display:flex; align-items:center; justify-content:center; }
+    .seat.turn { border-color:var(--gold); background:rgba(255,203,47,.16); box-shadow:0 0 16px rgba(255,203,47,.5); }
+    .seat.off { opacity:.55; }
+    #boardwrap { position:relative; border-radius:20px; padding:8px; background:linear-gradient(180deg,#9b78ff,#4a24b8 60%,#2d1280);
+      box-shadow:0 10px 0 #1c0763, 0 20px 30px rgba(0,0,0,.55), inset 0 2px 0 rgba(255,255,255,.35); }
+    canvas#board { width:100%; height:auto; display:block; border-radius:12px; background:#fff; touch-action:manipulation; box-shadow:inset 0 0 0 3px rgba(0,0,0,.25); }
     #timerbar { height:6px; border-radius:6px; background:rgba(255,255,255,.15); overflow:hidden; }
     #timerfill { height:100%; width:0; background:linear-gradient(90deg,#69f0ae,var(--gold),#ff5252); border-radius:6px; }
-    #status { text-align:center; font-size:16px; font-weight:800; min-height:44px; display:flex; align-items:center; justify-content:center; padding:0 6px; }
-    #controls { display:flex; align-items:center; justify-content:center; gap:16px; }
+    #status { text-align:center; font-size:16px; font-weight:800; min-height:40px; display:flex; align-items:center; justify-content:center; padding:0 6px; }
+    #controls { display:flex; align-items:center; justify-content:center; gap:12px; }
 
-    /* the dice (it is also the roll button) */
-    #roll { width:86px; height:86px; padding:0; border:0; border-radius:20px; position:relative; background:linear-gradient(145deg,#fff,#d9d4ee);
-      box-shadow:0 6px 0 #8f86bd, 0 12px 20px rgba(0,0,0,.45), inset 0 -4px 8px rgba(0,0,0,.12); }
-    #roll .pips { position:absolute; inset:11px; display:grid; grid-template-columns:repeat(3,1fr); grid-template-rows:repeat(3,1fr); }
-    #roll .pip { margin:auto; width:15px; height:15px; border-radius:50%; background:transparent; }
-    #roll .pip.on { background:radial-gradient(circle at 35% 30%, #5d5d75, #14141f); box-shadow:inset 0 -1px 2px rgba(255,255,255,.25); }
-    #roll.six .pip.on, #roll .pip.on.red { background:radial-gradient(circle at 35% 30%, #ff6b6b, #b00020); }
-    #roll:disabled { opacity:1; filter:saturate(.7) brightness(.85); cursor:default; }
-    #roll.ready { animation:pulse 1s ease-in-out infinite; }
-    #roll.rolling { animation:shake .12s linear infinite; }
-    @keyframes pulse { 0%,100% { transform:scale(1); box-shadow:0 6px 0 #8f86bd, 0 0 0 0 rgba(255,203,47,.8), 0 12px 20px rgba(0,0,0,.45);} 50% { transform:scale(1.07); box-shadow:0 6px 0 #8f86bd, 0 0 0 12px rgba(255,203,47,0), 0 12px 20px rgba(0,0,0,.45);} }
-    @keyframes shake { 0% { transform:rotate(-10deg) translateY(-3px);} 50% { transform:rotate(9deg) translateY(2px);} 100% { transform:rotate(-8deg) translateY(-2px);} }
+    /* 3D dice (also the roll button) */
+    #roll { width:52px; height:52px; padding:0; border:0; background:none; perspective:260px; position:relative; cursor:pointer; }
+    #roll:disabled { cursor:default; }
+    #roll .cube { width:52px; height:52px; position:relative; transform-style:preserve-3d; transform:rotateX(0) rotateY(0); }
+    #roll .cube.anim { transition:transform .95s cubic-bezier(.15,.75,.25,1); }
+    #roll .face { position:absolute; inset:0; border-radius:10px; background:linear-gradient(145deg,#fff,#d9d4ee); border:1px solid #a9a1cc;
+      display:grid; grid-template-columns:repeat(3,1fr); grid-template-rows:repeat(3,1fr); padding:7px; box-shadow:inset 0 -3px 6px rgba(0,0,0,.12); }
+    #roll .f1 { transform:translateZ(26px); } #roll .f6 { transform:rotateY(180deg) translateZ(26px); }
+    #roll .f2 { transform:rotateY(90deg) translateZ(26px); } #roll .f5 { transform:rotateY(-90deg) translateZ(26px); }
+    #roll .f3 { transform:rotateX(90deg) translateZ(26px); } #roll .f4 { transform:rotateX(-90deg) translateZ(26px); }
+    #roll .pip { margin:auto; width:8px; height:8px; border-radius:50%; background:transparent; }
+    #roll .pip.on { background:radial-gradient(circle at 35% 30%, #54546c, #12121c); }
+    #roll .f1 .pip.on { background:radial-gradient(circle at 35% 30%, #ff6b6b, #b00020); width:11px; height:11px; }
+    #roll.ready { animation:bob .8s ease-in-out infinite; filter:drop-shadow(0 0 10px #ffcb2f); }
+    #roll.idle { opacity:.85; }
+    @keyframes bob { 0%,100% { transform:translateY(0) scale(1);} 50% { transform:translateY(-5px) scale(1.12);} }
+    #roll .tap { position:absolute; left:50%; bottom:-14px; transform:translateX(-50%); font-size:10px; font-weight:900; letter-spacing:1px; color:var(--gold); text-shadow:0 1px 2px #000; display:none; }
+    #roll.ready .tap { display:block; }
     #roomline { text-align:center; }
     #log { font-size:12px; color:var(--muted); text-align:center; min-height:16px; }
 
@@ -145,15 +155,16 @@
           <div class="field"><label for="players">Players</label>
             <select id="players"><option value="2">2 players</option><option value="4">4 players</option></select></div>
         </div>
-        <button class="btn big" id="quick">▶ PLAY NOW</button>
+        <button class="btn big" id="quick">👥 PLAY ONLINE</button>
         <div class="row">
-          <button class="btn secondary" id="private" style="flex:1">Private room</button>
+          <button class="btn secondary" id="bots" style="flex:1">🤖 Vs computer</button>
+          <button class="btn secondary" id="private" style="flex:1">🔑 With friends</button>
         </div>
         <div class="row">
           <input id="code" placeholder="Room code" style="flex:1 1 120px;min-width:0">
           <button class="btn ghost" id="join">Join with code</button>
         </div>
-        <div class="hint">Play Now waits about 20 seconds for other players, then bots fill the empty seats.</div>
+        <div class="hint">Play Online waits for real players. With friends: make a private room and share its code. Vs computer starts at once.</div>
         <div id="error"></div>
         <details id="tournaments">
           <summary>🏆 TOURNAMENTS</summary>
@@ -167,15 +178,16 @@
     </div>
 
     <div id="game">
-      <div id="players-list"></div>
+      <div class="seatrow" id="row-top"></div>
       <div id="boardwrap"><canvas id="board" width="900" height="900"></canvas></div>
+      <div class="seatrow" id="row-bottom"></div>
       <div id="timerbar"><div id="timerfill"></div></div>
       <div id="status"></div>
       <div id="controls">
         <button id="leave" class="btn ghost" style="padding:10px 14px;font-size:14px">Leave</button>
-        <button id="roll" class="ready" aria-label="Roll the dice"><div class="pips"></div></button>
-        <button id="start" class="btn secondary" style="padding:10px 14px;font-size:14px">Start now</button>
+        <button id="start" class="btn secondary" style="padding:10px 14px;font-size:14px">Start with computer players</button>
       </div>
+      <button id="roll" class="ready" aria-label="Roll the dice"><div class="cube"></div><span class="tap">TAP</span></button>
       <div class="hint" id="roomline"></div>
       <div id="log"></div>
     </div>

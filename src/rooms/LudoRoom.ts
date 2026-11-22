@@ -14,6 +14,10 @@ export interface JoinOptions {
   private?: boolean;
   /** Play a counted game in this tournament (ludo-api must be configured). */
   tournamentId?: string;
+  /** Start straight away against computer players (private room, only this player). */
+  vsBots?: boolean;
+  /** Public lobby waits for real players; computer players are never added automatically. */
+  waitForHumans?: boolean;
 }
 
 interface AuthData {
@@ -37,6 +41,8 @@ export class LudoRoom extends Room<LudoState> {
   /** Users holding one of their (limited) active-game slots through this room. */
   private heldUsers = new Set<string>();
   private tournamentId = "";
+  private vsBots = false;
+  private waitForHumans = false;
 
   onCreate(options: JoinOptions): void {
     const players = options.players === 4 ? 4 : 2;
@@ -45,7 +51,9 @@ export class LudoRoom extends Room<LudoState> {
 
     const state = new LudoState();
     state.playerCount = players;
-    if (options.private) {
+    this.vsBots = options.vsBots === true;
+    this.waitForHumans = options.waitForHumans === true;
+    if (options.private || this.vsBots) {
       state.isPrivate = true;
       this.setPrivate(true);
     }
@@ -134,6 +142,10 @@ export class LudoRoom extends Room<LudoState> {
     this.touch();
 
     if (this.state.players.length === this.seatList.length) this.startGame();
+    else if (this.vsBots && !this.game) {
+      this.fillWithBots();
+      this.startGame();
+    }
   }
 
   async onLeave(client: Client, consented: boolean): Promise<void> {
@@ -204,7 +216,7 @@ export class LudoRoom extends Room<LudoState> {
 
   /** Public lobbies start with bots after a wait; private rooms wait for the host. */
   private armLobbyTimer(): void {
-    if (this.lobbyTimer || this.game || this.state.isPrivate) return;
+    if (this.lobbyTimer || this.game || this.state.isPrivate || this.waitForHumans) return;
     const ms = config.lobbyFillSeconds * 1000;
     this.state.fillDeadline = Date.now() + ms;
     this.lobbyTimer = this.clock.setTimeout(() => {
@@ -322,7 +334,7 @@ export class LudoRoom extends Room<LudoState> {
       return;
     }
 
-    if (game.phase === "move" && game.legal.length === 1) {
+    if (config.autoSingleMove && game.phase === "move" && game.legal.length === 1) {
       const piece = game.legal[0];
       this.turnTimer = this.clock.setTimeout(() => {
         if (this.game?.turn === seat && this.game.phase === "move") this.moveFor(seat, piece);
