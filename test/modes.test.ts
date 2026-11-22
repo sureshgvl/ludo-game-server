@@ -33,11 +33,11 @@ describe("play modes", () => {
     await b.leave();
   });
 
-  it("does not play a human's only legal move for them", async () => {
+  it("plays a human's only legal move automatically after a short pause", async () => {
     const a = await newClient(server.url).joinOrCreate("ludo", { userId: "m1", players: 2, waitForHumans: true, });
     const b = await newClient(server.url).joinOrCreate("ludo", { userId: "m2", players: 2, waitForHumans: true });
     await new Promise((r) => setTimeout(r, 200));
-    // roll until a roll leaves exactly one legal move, then make sure it waits for the player
+    // roll until a roll leaves exactly one legal move, then make sure the server plays it
     let checked = false;
     for (let i = 0; i < 60 && !checked; i++) {
       const st = a.state as any;
@@ -48,9 +48,8 @@ describe("play modes", () => {
       const s3 = turnRoom.state as any;
       if (s3.phase === "move" && s3.legalMoves.length === 1) {
         const seq = s3.seq;
-        await new Promise((r) => setTimeout(r, 900)); // longer than the old forced-move delay
-        assert.equal((turnRoom.state as any).phase, "move");
-        assert.equal((turnRoom.state as any).seq, seq);
+        await new Promise((r) => setTimeout(r, 1200)); // longer than the forced-move delay
+        assert.notEqual((turnRoom.state as any).seq, seq, "the only legal move should have been played");
         checked = true;
       } else if (s3.phase === "move") {
         turnRoom.send("move", { piece: s3.legalMoves[0] });

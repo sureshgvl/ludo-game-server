@@ -19,10 +19,10 @@ export const config = {
   reconnectSeconds: num("RECONNECT_SECONDS", 30),
   // Pause before a bot (or a disconnected player's auto-play) acts.
   botDelayMs: num("BOT_DELAY_MS", 900),
-  // When true the server plays a human's move for them if only one piece can move. Off: the player taps it.
-  autoSingleMove: (process.env.AUTO_SINGLE_MOVE ?? "false") === "true",
+  // The server plays a move for a human when only one piece can move (like Ludo King). Set AUTO_SINGLE_MOVE=false to make players tap it.
+  autoSingleMove: (process.env.AUTO_SINGLE_MOVE ?? "true") !== "false",
   // Pause before the server plays a forced move (only one legal piece).
-  autoMoveDelayMs: num("AUTO_MOVE_DELAY_MS", 450),
+  autoMoveDelayMs: num("AUTO_MOVE_DELAY_MS", 600),
   // How long a finished room stays open so clients can read the result.
   finishedCloseMs: num("FINISHED_CLOSE_MS", 15000),
 };
