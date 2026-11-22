@@ -7,6 +7,7 @@ export async function startTestServer() {
   await gameServer.listen(port);
   return {
     url: `ws://localhost:${port}`,
+    httpUrl: `http://localhost:${port}`,
     stop: () => gameServer.gracefullyShutdown(false),
   };
 }

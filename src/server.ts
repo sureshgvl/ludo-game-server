@@ -1,4 +1,5 @@
 import { createServer } from "http";
+import path from "node:path";
 import express from "express";
 import { Server } from "@colyseus/core";
 import { WebSocketTransport } from "@colyseus/ws-transport";
@@ -9,6 +10,13 @@ export function createGameServer() {
   app.get("/health", (_req, res) => {
     res.json({ status: "ok", service: "ludo-game-server" });
   });
+
+  // Playable web client (works from both src/ and dist/).
+  const root = path.join(__dirname, "..");
+  app.get("/vendor/colyseus.js", (_req, res) => {
+    res.sendFile(path.join(root, "node_modules", "colyseus.js", "dist", "colyseus.js"));
+  });
+  app.use(express.static(path.join(root, "public")));
 
   const httpServer = createServer(app);
   const gameServer = new Server({
