@@ -3,6 +3,7 @@ import { Client, Delayed, Room, ServerError } from "@colyseus/core";
 import { config } from "../config";
 import { LudoGame, pickBotMove } from "../engine/ludo";
 import { getActiveGamesStore } from "../limits/activeGames";
+import { checkEligibility, reportGame, tournamentsEnabled } from "../tournaments/api";
 import { LudoState, PlayerState } from "./LudoState";
 
 export interface JoinOptions {
@@ -11,6 +12,8 @@ export interface JoinOptions {
   /** 2 or 4 */
   players?: number;
   private?: boolean;
+  /** Play a counted game in this tournament (ludo-api must be configured). */
+  tournamentId?: string;
 }
 
 interface AuthData {
@@ -33,6 +36,7 @@ export class LudoRoom extends Room<LudoState> {
   private lobbyTimer: Delayed | null = null;
   /** Users holding one of their (limited) active-game slots through this room. */
   private heldUsers = new Set<string>();
+  private tournamentId = "";
 
   onCreate(options: JoinOptions): void {
     const players = options.players === 4 ? 4 : 2;
@@ -44,6 +48,10 @@ export class LudoRoom extends Room<LudoState> {
     if (options.private) {
       state.isPrivate = true;
       this.setPrivate(true);
+    }
+    if (typeof options.tournamentId === "string" && options.tournamentId) {
+      this.tournamentId = options.tournamentId;
+      state.tournamentId = options.tournamentId;
     }
     this.setState(state);
 
@@ -63,6 +71,8 @@ export class LudoRoom extends Room<LudoState> {
     if (!userId || userId.length > 64) throw new ServerError(4001, "userId required");
     const name = (typeof options.name === "string" ? options.name.trim() : "").slice(0, 20);
 
+    if (this.tournamentId) await this.requireEligible(userId);
+
     if (this.heldUsers.has(userId)) throw new ServerError(4004, "already_in_room");
     this.heldUsers.add(userId);
     let allowed = false;
@@ -77,6 +87,25 @@ export class LudoRoom extends Room<LudoState> {
       throw new ServerError(4003, "max_active_games");
     }
     return { userId, name: name || "Player" };
+  }
+
+  /** Tournament rooms only admit registered players while the tournament is running. */
+  private async requireEligible(userId: string): Promise<void> {
+    if (!tournamentsEnabled()) throw new ServerError(4005, "tournaments_unavailable");
+    let result;
+    try {
+      result = await checkEligibility(this.tournamentId, userId);
+    } catch {
+      throw new ServerError(4005, "tournaments_unavailable");
+    }
+    if (!result.eligible) throw new ServerError(4006, `not_eligible:${result.reason}`);
+    if (result.playersPerGame !== this.state.playerCount) {
+      throw new ServerError(4007, `wrong_game_size:${result.playersPerGame}`);
+    }
+  }
+
+  private humanCount(): number {
+    return this.state.players.filter((p) => !p.isBot).length;
   }
 
   /** Give a user's active-game slot back (idempotent). */
@@ -168,6 +197,7 @@ export class LudoRoom extends Room<LudoState> {
 
   private handleStart(client: Client): void {
     if (this.game || client.sessionId !== this.hostSession) return;
+    if (this.tournamentId && this.humanCount() < 2) return;
     this.fillWithBots();
     this.startGame();
   }
@@ -180,6 +210,10 @@ export class LudoRoom extends Room<LudoState> {
     this.lobbyTimer = this.clock.setTimeout(() => {
       this.lobbyTimer = null;
       if (this.game || this.state.players.length === 0) return;
+      if (this.tournamentId && this.humanCount() < 2) {
+        this.armLobbyTimer(); // a counted game needs two real players: keep waiting
+        return;
+      }
       this.fillWithBots();
       this.startGame();
     }, ms);
@@ -356,6 +390,16 @@ export class LudoRoom extends Room<LudoState> {
         return { seat, placement: i + 1, userId: p?.userId, name: p?.name, isBot: !!p?.isBot };
       }),
     });
+    if (this.tournamentId) {
+      void reportGame({
+        tournamentId: this.tournamentId,
+        gameId: this.roomId,
+        placements: placements.map((seat, i) => {
+          const p = this.playerBySeat(seat);
+          return { userId: p?.userId ?? `seat-${seat}`, placement: i + 1, isBot: !!p?.isBot };
+        }),
+      });
+    }
     this.clock.setTimeout(() => this.disconnect(), config.finishedCloseMs);
   }
 

@@ -18,6 +18,7 @@ export class LudoState extends Schema {
   @type("number") playerCount = 2;
   /** Private rooms are joined by room id (the share code) and never matched automatically. */
   @type("boolean") isPrivate = false;
+  @type("string") tournamentId = "";
   /** Epoch ms when empty seats are filled with bots in a public lobby (0 = no countdown). */
   @type("number") fillDeadline = 0;
   @type("number") currentSeat = -1;

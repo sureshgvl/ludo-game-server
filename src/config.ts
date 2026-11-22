@@ -24,3 +24,12 @@ export const config = {
   // How long a finished room stays open so clients can read the result.
   finishedCloseMs: num("FINISHED_CLOSE_MS", 15000),
 };
+
+// Tournament integration with ludo-api. Leave API_URL empty to disable tournaments.
+export const apiConfig = {
+  url: (process.env.API_URL ?? "").replace(/\/+$/, ""),
+  internalKey: process.env.INTERNAL_API_KEY ?? "",
+  // Attempts and pause when reporting a finished game fails.
+  reportRetries: num("REPORT_RETRIES", 5),
+  reportRetryMs: num("REPORT_RETRY_MS", 2000),
+};

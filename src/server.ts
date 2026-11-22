@@ -23,7 +23,7 @@ export function createGameServer() {
     transport: new WebSocketTransport({ server: httpServer }),
   });
   // Quick match: joinOrCreate pairs players who asked for the same player count.
-  gameServer.define("ludo", LudoRoom).filterBy(["players"]);
+  gameServer.define("ludo", LudoRoom).filterBy(["players", "tournamentId"]);
 
   return { app, httpServer, gameServer };
 }
