@@ -4,12 +4,11 @@
     "module": "commonjs",
     "moduleResolution": "node",
     "outDir": "dist",
-    "rootDir": "src",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "experimentalDecorators": true,
     "useDefineForClassFields": false
   },
-  "include": ["src"]
+  "include": ["src", "test"]
 }
