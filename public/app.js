@@ -48,7 +48,8 @@
 
   // 3D renderer (falls back to the flat canvas when WebGL is not available)
   var b3d = null;
-  try { b3d = window.Board3D && Board3D.create($("board3d")); } catch (e) { b3d = null; }
+  // 3D is off by default (add ?3d=1 to the address to try it); the flat 2D board is the main look
+  try { b3d = /[?&]3d=1/.test(location.search) && window.Board3D ? Board3D.create($("board3d")) : null; } catch (e) { b3d = null; }
   if (b3d) $("boardwrap").classList.add("has3d"); else $("board3d").style.display = "none";
   var pickTarget = b3d ? $("board3d") : canvas;
 
