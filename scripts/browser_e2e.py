@@ -11,7 +11,7 @@ errors = []
 os.makedirs("/tmp/ludo-shots", exist_ok=True)
 
 with sync_playwright() as p:
-    browser = p.chromium.launch(executable_path=os.environ.get("CHROME_PATH", "/usr/bin/google-chrome"), headless=True, args=["--no-sandbox"])
+    browser = p.chromium.launch(executable_path=os.environ.get("CHROME_PATH", "/usr/bin/google-chrome"), headless=True, args=["--no-sandbox", "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"])
     page = browser.new_page(viewport={"width": 1100, "height": 760})
     page.on("pageerror", lambda e: errors.append(str(e)))
     page.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
@@ -42,10 +42,12 @@ with sync_playwright() as p:
           const me = s.state.players.find(p => p.seat === s.mySeat);
           return window.__ludo.piecePos(me.seat, me.pieces[idx], idx);
         }""", idx)
-        box = page.locator("#board").bounding_box()
-        x = box["x"] + pos[0] / 15 * box["width"]
-        y = box["y"] + pos[1] / 15 * box["height"]
-        page.mouse.click(x, y)
+        scr = page.evaluate("(p) => window.__ludo.screenPos(p[0], p[1])", pos)
+        if scr:
+            page.mouse.click(scr[0], scr[1])
+        else:
+            box = page.locator("#board").bounding_box()
+            page.mouse.click(box["x"] + pos[0] / 15 * box["width"], box["y"] + pos[1] / 15 * box["height"])
 
     shots = 0
     start = time.time()

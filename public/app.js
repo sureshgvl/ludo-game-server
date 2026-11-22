@@ -46,6 +46,12 @@
   var ctx = canvas.getContext("2d");
   var CELL = canvas.width / 15;
 
+  // 3D renderer (falls back to the flat canvas when WebGL is not available)
+  var b3d = null;
+  try { b3d = window.Board3D && Board3D.create($("board3d")); } catch (e) { b3d = null; }
+  if (b3d) $("boardwrap").classList.add("has3d"); else $("board3d").style.display = "none";
+  var pickTarget = b3d ? $("board3d") : canvas;
+
   var userId = localStorage.getItem("ludo_user_id");
   if (!userId) {
     userId = "u_" + Math.random().toString(36).slice(2, 12);
@@ -420,7 +426,7 @@
       card.av.style.background = "radial-gradient(circle at 35% 30%, " + PAL[seat][1] + ", " + PAL[seat][0] + " 55%, " + PAL[seat][2] + ")";
       card.nm.textContent = p.userId === userId ? "You" : p.name;
       var home = p.pieces.filter(function (v) { return v === 56; }).length;
-      card.sub.textContent = p.forfeited ? "out" : (p.isBot ? "🤖 " : "") + home + "/4 home";
+      card.sub.textContent = p.forfeited ? "out" : (p.isBot ? "🤖 " : "🏠 ") + home + "/4";
     });
 
     var last = s.log.length ? s.log[s.log.length - 1] : "";
@@ -708,8 +714,11 @@
     var st = s.state;
     var pulse = 0.5 + 0.5 * Math.sin(now / 220);
     var turnSeat = st.phase === "roll" || st.phase === "move" ? st.currentSeat : -1;
-    drawBoardBase(turnSeat, pulse);
-    if (st.phase === "lobby") return;
+    if (!b3d) drawBoardBase(turnSeat, pulse);
+    if (st.phase === "lobby") {
+      if (b3d) b3d.render({ time: now, pulse: pulse, turnSeat: -1, pieces: [], fx: [] });
+      return;
+    }
 
     // advance the hopping animation: pieces walk one square at a time towards their real position
     var pieces = [];
@@ -768,6 +777,24 @@
       });
     });
     drawList.sort(function (a, b) { return a.y - b.y; });
+    if (b3d) {
+      var fxIn = [];
+      s.fx.forEach(function (f) { f.t = Math.min(1, f.t + dt / 0.6); fxIn.push({ gx: f.x, gy: f.y, t: f.t, col: parseInt(f.col.slice(1), 16) }); });
+      s.fx = s.fx.filter(function (f) { return f.t < 1; });
+      b3d.render({
+        time: now, pulse: pulse, turnSeat: turnSeat, fx: fxIn,
+        pieces: drawList.map(function (pc) {
+          var legal = s.myTurn && st.phase === "move" && pc.seat === s.mySeat && st.legalMoves.indexOf(pc.idx) >= 0;
+          var frac = pc.moving ? pc.shown - Math.floor(pc.shown) : 0;
+          var lift = pc.moving ? Math.sin(frac * Math.PI) : (legal ? pulse * 0.25 : 0);
+          if (pc.flyLift) lift = pc.flyLift;
+          var sc = (pc.r / (CELL * 0.42)) * (pc.pop !== undefined ? 1 + 0.35 * Math.sin(pc.pop * Math.PI) : 1);
+          return { seat: pc.seat, idx: pc.idx, gx: pc.x / CELL, gy: pc.y / CELL, lift: lift, scale: sc, legal: legal,
+                   yard: pc.shown < 0 && !pc.fly, home: pc.shown >= 56 };
+        })
+      });
+      return;
+    }
     drawList.forEach(function (pc) {
       var legal = s.myTurn && st.phase === "move" && pc.seat === s.mySeat && st.legalMoves.indexOf(pc.idx) >= 0;
       if (legal) {
@@ -805,12 +832,19 @@
     });
   }
 
-  canvas.addEventListener("click", function (e) {
+  pickTarget.addEventListener("click", function (e) {
     var s = current();
     if (!s || !s.state || !s.myTurn || s.state.phase !== "move") return;
-    var box = canvas.getBoundingClientRect();
-    var gx = ((e.clientX - box.left) / box.width) * 15;
-    var gy = ((e.clientY - box.top) / box.height) * 15;
+    var gx, gy;
+    if (b3d) {
+      var g = b3d.pick(e.clientX, e.clientY);
+      if (!g) return;
+      gx = g[0]; gy = g[1];
+    } else {
+      var box = canvas.getBoundingClientRect();
+      gx = ((e.clientX - box.left) / box.width) * 15;
+      gy = ((e.clientY - box.top) / box.height) * 15;
+    }
     var me = s.state.players.find(function (p) { return p.seat === s.mySeat; });
     var best = -1, bestD = 0.85;
     s.state.legalMoves.forEach(function (idx) {
@@ -850,7 +884,8 @@
   }
 
   // Read-only handle used by the browser end-to-end test.
-  window.__ludo = { sessions: sessions, piecePos: piecePos, userId: userId };
+  window.__ludo = { sessions: sessions, piecePos: piecePos, userId: userId, is3d: !!b3d,
+    screenPos: function (gx, gy) { return b3d ? b3d.project(gx, gy) : null; } };
 
   // keep countdowns and the player cards fresh; the board itself is drawn every frame
   setInterval(function () { var s = current(); if (s && s.state) renderGame(s); }, 250);

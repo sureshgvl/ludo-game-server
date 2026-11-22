@@ -96,3 +96,7 @@ Free instances sleep when idle, which drops live games; use a paid instance for 
 ## Web client (works like an app on phones)
 
 The page served at `/` is a mobile-first game client: coloured board, animated dice, hopping pawns, sound effects (mute button top right), vibration on capture, and confetti when you win. It is also a PWA: open the address in Chrome on Android and choose **Add to Home screen** (Safari on iPhone: Share → Add to Home Screen). It then opens full screen with its own icon.
+
+### 3D board
+
+The board is drawn with three.js (`web/board3d.js`). After changing it run `npm run build:web`, which rebuilds `public/vendor/board3d.js` (commit that file; Render serves it as is). Devices without WebGL fall back to the flat 2D board, and slow devices automatically drop shadows and resolution.
