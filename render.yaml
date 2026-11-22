@@ -1,0 +1,29 @@
+# Render Blueprint: creates the game server (WebSockets + web client) and a Redis-compatible store.
+services:
+  - type: web
+    name: ludo-game-server
+    runtime: node
+    plan: free
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: ludo-redis
+          property: connectionString
+      # URL of the deployed ludo-api, e.g. https://ludo-api.onrender.com
+      - key: API_URL
+        sync: false
+      # Must be the same value as INTERNAL_API_KEY on ludo-api.
+      - key: INTERNAL_API_KEY
+        sync: false
+
+  - type: keyvalue
+    name: ludo-redis
+    plan: free
+    ipAllowList: []
+    maxmemoryPolicy: noeviction
