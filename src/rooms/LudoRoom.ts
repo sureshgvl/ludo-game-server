@@ -4,7 +4,7 @@ import { verifyToken } from "../auth";
 import { config } from "../config";
 import { LudoGame, pickBotMove } from "../engine/ludo";
 import { getActiveGamesStore } from "../limits/activeGames";
-import { checkEligibility, reportGame, tournamentsEnabled } from "../tournaments/api";
+import { checkEligibility, reportGame, reportResult, tournamentsEnabled } from "../tournaments/api";
 import { LudoState, PlayerState } from "./LudoState";
 
 export interface JoinOptions {
@@ -436,6 +436,13 @@ export class LudoRoom extends Room<LudoState> {
         }),
       });
     }
+    void reportResult({
+      gameId: this.roomId,
+      placements: placements.map((seat, i) => {
+        const p = this.playerBySeat(seat);
+        return { userId: p?.userId ?? `seat-${seat}`, placement: i + 1, isBot: !!p?.isBot };
+      }),
+    });
     this.clock.setTimeout(() => this.disconnect(), config.finishedCloseMs);
   }
 

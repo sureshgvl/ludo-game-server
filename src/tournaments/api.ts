@@ -51,3 +51,29 @@ export async function reportGame(report: GameReport): Promise<boolean> {
   console.error(`[tournament] gave up reporting game ${report.gameId}`);
   return false;
 }
+
+export interface ResultReport {
+  gameId: string;
+  placements: { userId: string; placement: number; isBot: boolean }[];
+}
+
+/** Reports any finished game (tournament or not) for coins and XP. Best effort, idempotent per gameId. */
+export async function reportResult(report: ResultReport): Promise<boolean> {
+  if (!tournamentsEnabled()) return false;
+  for (let attempt = 1; attempt <= apiConfig.reportRetries; attempt++) {
+    try {
+      const res = await fetch(`${apiConfig.url}/api/internal/results`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify(report),
+        signal: AbortSignal.timeout(5000),
+      });
+      if (res.ok) return true;
+      if (res.status >= 400 && res.status < 500) return false;
+    } catch {
+      // retry
+    }
+    if (attempt < apiConfig.reportRetries) await new Promise((r) => setTimeout(r, apiConfig.reportRetryMs));
+  }
+  return false;
+}
