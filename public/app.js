@@ -484,6 +484,9 @@
         el.dataset.kind = "game"; el.textContent = "";
         var cv = document.createElement("canvas"); cv.width = 180; cv.height = 180;
         var cap = document.createElement("div"); cap.className = "cap";
+        var st1 = document.createElement("div"); st1.className = "cap-name";
+        var st2 = document.createElement("div"); st2.className = "cap-status";
+        cap.appendChild(st1); cap.appendChild(st2);
         el.appendChild(cv); el.appendChild(cap);
       }
       (function (idx) { el.onclick = function () { active = idx; refresh(); }; })(i);
@@ -500,11 +503,16 @@
           });
         });
       }
-      var label = "Game " + (i + 1);
-      if (s.over) label += " · over";
-      else if (!st || st.phase === "lobby") label += " · waiting";
-      else label += s.myTurn ? " · YOUR TURN" : " · " + SEAT_NAMES[st.currentSeat] + "'s turn";
-      el.lastChild.textContent = label;
+      var status = "", mine = false;
+      if (s.over) status = "Finished";
+      else if (s.reconnecting) status = "Reconnecting";
+      else if (!st || st.phase === "lobby") status = "Waiting";
+      else if (s.myTurn) { status = "YOUR TURN"; mine = true; }
+      else status = SEAT_NAMES[st.currentSeat] + "'s turn";
+      var capEl = el.lastChild;
+      capEl.firstChild.textContent = "Game " + (i + 1);
+      capEl.lastChild.textContent = status;
+      capEl.lastChild.className = "cap-status" + (mine ? " mine" : "");
     }
   }
   setInterval(function () { if (!document.hidden) { if (!boardCache) buildBoardCache(); renderStrip(); } }, 300);
