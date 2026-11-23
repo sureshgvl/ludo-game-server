@@ -46,6 +46,18 @@ export class LudoRoom extends Room<LudoState> {
   private tournamentId = "";
   private vsBots = false;
   private waitForHumans = false;
+  private lastSnap = "";
+
+  /**
+   * Plain JSON copy of the game state, sent as a "snap" message whenever it changes.
+   * Lets the native app read the game without decoding Colyseus' binary state format.
+   */
+  private pushSnap(): void {
+    const json = JSON.stringify(this.state.toJSON());
+    if (json === this.lastSnap) return;
+    this.lastSnap = json;
+    this.broadcast("snap", JSON.parse(json));
+  }
 
   onCreate(options: JoinOptions): void {
     const players = options.players === 4 ? 4 : 2;
@@ -65,6 +77,7 @@ export class LudoRoom extends Room<LudoState> {
       state.tournamentId = options.tournamentId;
     }
     this.setState(state);
+    this.clock.setInterval(() => this.pushSnap(), 100);
 
     this.onMessage("roll", (client) => this.handleRoll(client));
     this.onMessage("move", (client, message: { piece?: number }) =>
@@ -147,6 +160,7 @@ export class LudoRoom extends Room<LudoState> {
     this.state.players.push(player);
     this.seatBySession.set(client.sessionId, seat);
     this.hostSession ??= client.sessionId;
+    client.send("snap", this.state.toJSON());
     this.armLobbyTimer();
     this.touch();
 
@@ -195,6 +209,7 @@ export class LudoRoom extends Room<LudoState> {
     try {
       await this.allowReconnection(client, config.reconnectSeconds);
       player.connected = true;
+      this.lastSnap = ""; // force a fresh snapshot to everyone
       this.scheduleTurn();
       this.touch();
     } catch {

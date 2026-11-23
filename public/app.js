@@ -382,6 +382,7 @@
       }
       refresh();
     });
+    room.onMessage("snap", function () { /* used by the native app */ });
     room.onMessage("rolled", function (m) {
       s.rollAnimUntil = Date.now() + 1000;
       if (s === current()) { sfx.roll(); placeDie(s, m.seat); setCube(m.dice, true, s); }
