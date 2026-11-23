@@ -53,13 +53,50 @@
   if (b3d) $("boardwrap").classList.add("has3d"); else $("board3d").style.display = "none";
   var pickTarget = b3d ? $("board3d") : canvas;
 
+  // Identity: with login on, the id/name/token come from ludo-api; otherwise a random local id (dev mode).
+  var cfg = { authRequired: false, apiUrl: "" };
+  var token = localStorage.getItem("ludo_token") || "";
   var userId = localStorage.getItem("ludo_user_id");
   if (!userId) {
     userId = "u_" + Math.random().toString(36).slice(2, 12);
     localStorage.setItem("ludo_user_id", userId);
   }
+  function claimsOf(t) {
+    try { return JSON.parse(atob(t.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))); } catch (e) { return null; }
+  }
+  function useToken(t) {
+    var c = t ? claimsOf(t) : null;
+    if (c && c.exp * 1000 > Date.now()) {
+      token = t; userId = c.sub; localStorage.setItem("ludo_token", t);
+      $("name").value = c.name || ""; localStorage.setItem("ludo_name", c.name || "");
+      $("name").disabled = true;
+      return true;
+    }
+    token = ""; localStorage.removeItem("ludo_token"); $("name").disabled = false;
+    return false;
+  }
+  function paintWho() {
+    $("who").textContent = token ? $("name").value + " · log out" : "id " + userId.slice(0, 8);
+    $("who").style.cursor = token ? "pointer" : "default";
+  }
+  function idOpts() { return { userId: userId, name: playerName(), token: token }; }
+  function needLogin() { $("auth").style.display = "flex"; }
   $("name").value = localStorage.getItem("ludo_name") || "";
-  $("who").textContent = "id " + userId.slice(0, 8);
+  paintWho();
+  $("who").onclick = function () { if (token) { useToken(""); paintWho(); if (cfg.authRequired) needLogin(); } };
+
+  async function submitAuth(kind) {
+    var body = { phone: $("a-phone").value.trim(), password: $("a-pass").value, name: $("a-name").value.trim() };
+    try {
+      var res = await fetch(apiBase.replace(/\/+$/, "") + "/api/auth/" + kind, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+      var data = await res.json().catch(function () { return {}; });
+      if (!res.ok) throw new Error(Array.isArray(data.message) ? data.message.join(", ") : data.message || "HTTP " + res.status);
+      useToken(data.token); paintWho();
+      $("a-pass").value = ""; $("a-err").textContent = ""; $("auth").style.display = "none";
+    } catch (e) { $("a-err").textContent = e.message; }
+  }
+  $("a-login").onclick = function () { submitAuth("login"); };
+  $("a-register").onclick = function () { submitAuth("register"); };
 
   var wsProto = location.protocol === "https:" ? "wss://" : "ws://";
   var client = new Colyseus.Client(wsProto + location.host);
@@ -118,6 +155,7 @@
     if (code === 4004) return "You are already waiting in that game. Start it, or create a private room for another game.";
     if (code === 4002) return "That room is full.";
     if (code === 4001) return "Missing player id.";
+    if (code === 4008) { useToken(""); paintWho(); needLogin(); return "Please log in again."; }
     if (code === 4005) return "Tournaments are not available on this server right now.";
     if (code === 4006) return "Register for this tournament first (it must also be running).";
     if (code === 4007) return "This tournament uses a different number of players per game.";
@@ -141,28 +179,36 @@
 
   $("quick").onclick = function () {
     join(function () {
-      return client.joinOrCreate("ludo", { userId: userId, name: playerName(), players: Number($("players").value), waitForHumans: true });
+      return client.joinOrCreate("ludo", Object.assign(idOpts(), { players: Number($("players").value), waitForHumans: true }));
     });
   };
   $("bots").onclick = function () {
     join(function () {
-      return client.create("ludo", { userId: userId, name: playerName(), players: Number($("players").value), vsBots: true });
+      return client.create("ludo", Object.assign(idOpts(), { players: Number($("players").value), vsBots: true }));
     });
   };
   $("private").onclick = function () {
     join(function () {
-      return client.create("ludo", { userId: userId, name: playerName(), players: Number($("players").value), private: true });
+      return client.create("ludo", Object.assign(idOpts(), { players: Number($("players").value), private: true }));
     });
   };
   $("join").onclick = function () {
     var code = $("code").value.trim();
     if (!code) { showError("Enter a room code."); return; }
-    join(function () { return client.joinById(code, { userId: userId, name: playerName() }); });
+    join(function () { return client.joinById(code, idOpts()); });
   };
 
   // ---------- tournaments ----------
   var apiBase = localStorage.getItem("ludo_api_url") || "";
   $("apiurl").value = apiBase;
+  fetch("/config.json").then(function (r) { return r.json(); }).then(function (c) {
+    cfg = c;
+    if (c.apiUrl && !apiBase) { apiBase = c.apiUrl; $("apiurl").value = apiBase; }
+    if (c.authRequired) {
+      if (!useToken(token)) needLogin();
+      paintWho();
+    } else if (token) { useToken(""); paintWho(); }
+  }).catch(function () { /* keep dev defaults */ });
 
   function esc(v) {
     return String(v).replace(/[&<>"']/g, function (c) {
@@ -220,14 +266,14 @@
       else if (b.dataset.act === "reg") {
         await api("/tournaments/" + id + "/entries", {
           method: "POST",
-          headers: { "content-type": "application/json" },
+          headers: Object.assign({ "content-type": "application/json" }, token ? { authorization: "Bearer " + token } : {}),
           body: JSON.stringify({ userId: userId, name: playerName() }),
         });
         showError("Registered! You can play once the tournament is running.");
         await showBoard(id);
       } else if (b.dataset.act === "play") {
         join(function () {
-          return client.joinOrCreate("ludo", { userId: userId, name: playerName(), players: Number(b.dataset.n), tournamentId: id });
+          return client.joinOrCreate("ludo", Object.assign(idOpts(), { players: Number(b.dataset.n), tournamentId: id }));
         });
       }
     } catch (err) {

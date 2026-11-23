@@ -3,12 +3,18 @@ import path from "node:path";
 import express from "express";
 import { Server } from "@colyseus/core";
 import { WebSocketTransport } from "@colyseus/ws-transport";
+import { config, apiConfig } from "./config";
 import { LudoRoom } from "./rooms/LudoRoom";
 
 export function createGameServer() {
   const app = express();
   app.get("/health", (_req, res) => {
     res.json({ status: "ok", service: "ludo-game-server" });
+  });
+
+  // Tells the web client whether login is required and where ludo-api lives.
+  app.get("/config.json", (_req, res) => {
+    res.json({ authRequired: !!config.jwtSecret, apiUrl: apiConfig.url });
   });
 
   // Playable web client (works from both src/ and dist/).

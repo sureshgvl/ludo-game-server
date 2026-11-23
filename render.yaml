@@ -16,6 +16,8 @@ services:
       - key: API_URL
         sync: false
       # Must be the same value as INTERNAL_API_KEY on ludo-api.
+      - key: JWT_SECRET
+        sync: false # same value as on ludo-api
       - key: INTERNAL_API_KEY
         sync: false
 

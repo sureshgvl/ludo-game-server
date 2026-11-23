@@ -6,6 +6,8 @@ function num(name: string, fallback: number): number {
 
 export const config = {
   port: num("PORT", 2567),
+  // Same secret as ludo-api. When set, players must join with a login token and userId is taken from it. Empty = dev mode (userId trusted).
+  jwtSecret: process.env.JWT_SECRET ?? "",
   redisUrl: process.env.REDIS_URL ?? "",
   // A user may be in at most this many active games at once.
   maxActiveGamesPerUser: num("MAX_ACTIVE_GAMES", 3),

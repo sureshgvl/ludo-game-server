@@ -100,3 +100,10 @@ The page served at `/` is a mobile-first game client: coloured board, animated d
 ### 3D board
 
 The board is drawn with three.js (`web/board3d.js`). After changing it run `npm run build:web`, which rebuilds `public/vendor/board3d.js` (commit that file; Render serves it as is). Devices without WebGL fall back to the flat 2D board, and slow devices automatically drop shadows and resolution.
+
+## Player login
+
+Set `JWT_SECRET` (same value as on `ludo-api`). Players then log in on the web page (mobile number + password, handled by
+`ludo-api`) and the room takes their identity from the signed token; a spoofed `userId` is ignored and a missing or expired
+token is refused with code 4008. Leave `JWT_SECRET` empty only for local development. `/config.json` tells the web client
+whether login is required and where `ludo-api` is (`API_URL`).

@@ -1,5 +1,6 @@
 import { randomInt } from "node:crypto";
 import { Client, Delayed, Room, ServerError } from "@colyseus/core";
+import { verifyToken } from "../auth";
 import { config } from "../config";
 import { LudoGame, pickBotMove } from "../engine/ludo";
 import { getActiveGamesStore } from "../limits/activeGames";
@@ -9,6 +10,8 @@ import { LudoState, PlayerState } from "./LudoState";
 export interface JoinOptions {
   userId?: string;
   name?: string;
+  /** Login token from ludo-api (required when JWT_SECRET is set). */
+  token?: string;
   /** 2 or 4 */
   players?: number;
   private?: boolean;
@@ -72,12 +75,18 @@ export class LudoRoom extends Room<LudoState> {
 
   /**
    * Validates the player and reserves one of their active-game slots.
-   * TODO: replace the plain userId with a token issued by ludo-api.
+   * With JWT_SECRET set the identity comes from the signed login token; otherwise (dev) from options.userId.
    */
   async onAuth(_client: Client, options: JoinOptions): Promise<AuthData> {
-    const userId = typeof options?.userId === "string" ? options.userId.trim() : "";
+    let userId = typeof options?.userId === "string" ? options.userId.trim() : "";
+    let name = (typeof options?.name === "string" ? options.name.trim() : "").slice(0, 20);
+    if (config.jwtSecret) {
+      const claims = verifyToken(options?.token, config.jwtSecret);
+      if (!claims) throw new ServerError(4008, "login_required");
+      userId = claims.sub;
+      name = claims.name.slice(0, 20);
+    }
     if (!userId || userId.length > 64) throw new ServerError(4001, "userId required");
-    const name = (typeof options.name === "string" ? options.name.trim() : "").slice(0, 20);
 
     if (this.tournamentId) await this.requireEligible(userId);
 
