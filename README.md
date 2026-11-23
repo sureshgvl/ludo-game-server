@@ -107,3 +107,11 @@ Set `JWT_SECRET` (same value as on `ludo-api`). Players then log in on the web p
 `ludo-api`) and the room takes their identity from the signed token; a spoofed `userId` is ignored and a missing or expired
 token is refused with code 4008. Leave `JWT_SECRET` empty only for local development. `/config.json` tells the web client
 whether login is required and where `ludo-api` is (`API_URL`).
+
+### Google sign-in and reconnecting
+
+Set `GOOGLE_CLIENT_ID` (the web OAuth client ID; also add it to `GOOGLE_CLIENT_IDS` on ludo-api) and the login screen shows
+"Sign in with Google". Inside the Flutter app the same button asks the app to sign in natively (Google blocks embedded browsers)
+and the app passes the ID token to `window.onNativeGoogle`.
+Running games are remembered in the browser: after a page reload or a dropped connection the client rejoins the same seat
+(the server holds it for `RECONNECT_SECONDS`, default 30, auto-playing meanwhile).

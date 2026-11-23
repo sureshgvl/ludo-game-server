@@ -93,8 +93,42 @@
       if (!res.ok) throw new Error(Array.isArray(data.message) ? data.message.join(", ") : data.message || "HTTP " + res.status);
       useToken(data.token); paintWho();
       $("a-pass").value = ""; $("a-err").textContent = ""; $("auth").style.display = "none";
+      resumeGames();
     } catch (e) { $("a-err").textContent = e.message; }
   }
+  async function googleLogin(idToken) {
+    try {
+      var res = await fetch(apiBase.replace(/\/+$/, "") + "/api/auth/google", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ idToken: idToken }) });
+      var data = await res.json().catch(function () { return {}; });
+      if (!res.ok) throw new Error(data.message || "HTTP " + res.status);
+      useToken(data.token); paintWho();
+      $("a-err").textContent = ""; $("auth").style.display = "none";
+      resumeGames();
+    } catch (e) { $("a-err").textContent = e.message; }
+  }
+  window.onNativeGoogle = googleLogin; // called by the Flutter app after native Google sign-in
+
+  function setupGoogle() {
+    var inApp = !!(window.NativeApp && window.NativeApp.postMessage);
+    if (!cfg.googleClientId && !inApp) return;
+    $("g-box").style.display = "block";
+    if (inApp) {
+      // Google refuses sign-in inside embedded web views, so the app does it natively and hands us the ID token.
+      var b = document.createElement("button");
+      b.className = "btn"; b.textContent = "Sign in with Google";
+      b.onclick = function () { window.NativeApp.postMessage("google"); };
+      $("g-btn").appendChild(b);
+      return;
+    }
+    var sc = document.createElement("script");
+    sc.src = "https://accounts.google.com/gsi/client"; sc.async = true;
+    sc.onload = function () {
+      google.accounts.id.initialize({ client_id: cfg.googleClientId, callback: function (r) { googleLogin(r.credential); } });
+      google.accounts.id.renderButton($("g-btn"), { theme: "filled_blue", size: "large", text: "signin_with", shape: "pill" });
+    };
+    document.head.appendChild(sc);
+  }
+
   $("a-login").onclick = function () { submitAuth("login"); };
   $("a-register").onclick = function () { submitAuth("register"); };
 
@@ -203,12 +237,13 @@
   $("apiurl").value = apiBase;
   fetch("/config.json").then(function (r) { return r.json(); }).then(function (c) {
     cfg = c;
+    setupGoogle();
     if (c.apiUrl && !apiBase) { apiBase = c.apiUrl; $("apiurl").value = apiBase; }
     if (c.authRequired) {
       if (!useToken(token)) needLogin();
       paintWho();
     } else if (token) { useToken(""); paintWho(); }
-  }).catch(function () { /* keep dev defaults */ });
+  }).catch(function () { /* keep dev defaults */ }).then(function () { if (!cfg.authRequired || token) resumeGames(); });
 
   function esc(v) {
     return String(v).replace(/[&<>"']/g, function (c) {
@@ -286,6 +321,54 @@
     var s = { room: room, state: null, mySeat: -1, log: [], over: null, closed: false, myTurn: false,
               anim: {}, rollAnimUntil: 0, fx: [], turnStart: 0, turnDeadline: 0, lastSeq: -1, prevPieces: null };
     sessions.push(s);
+    bind(s, room);
+    active = sessions.length - 1;
+    refresh();
+  }
+
+  // Remember running games so a page reload or a network drop can rejoin them.
+  function saveResume(s) {
+    try {
+      var all = JSON.parse(localStorage.getItem("ludo_resume") || "{}");
+      if (s.closed || s.over) delete all[s.room.roomId]; else all[s.room.roomId] = { t: s.room.reconnectionToken, at: Date.now() };
+      localStorage.setItem("ludo_resume", JSON.stringify(all));
+    } catch (e) { /* storage unavailable */ }
+  }
+
+  async function tryReconnect(s, tries) {
+    var tokenStr = s.room.reconnectionToken;
+    for (var i = 0; i < tries && !s.leaving && !s.over; i++) {
+      try {
+        var room = await client.reconnect(tokenStr);
+        bind(s, room);
+        s.reconnecting = false;
+        pushLog(s, "Reconnected");
+        return true;
+      } catch (e) {
+        await new Promise(function (r) { setTimeout(r, 2000); });
+      }
+    }
+    return false;
+  }
+
+  async function resumeGames() {
+    var all = {};
+    try { all = JSON.parse(localStorage.getItem("ludo_resume") || "{}"); } catch (e) { all = {}; }
+    var open = sessions.map(function (x) { return x.room.roomId; });
+    for (var id of Object.keys(all)) {
+      if (open.indexOf(id) >= 0) continue;
+      if (Date.now() - all[id].at > 10 * 60000 || sessions.length >= MAX_GAMES) { delete all[id]; continue; }
+      try {
+        var room = await client.reconnect(all[id].t);
+        addSession(room);
+      } catch (e) { delete all[id]; }
+    }
+    try { localStorage.setItem("ludo_resume", JSON.stringify(all)); } catch (e) { /* ignore */ }
+  }
+
+  function bind(s, room) {
+    s.room = room;
+    saveResume(s);
     room.onStateChange(function (state) {
       var wasMyTurn = s.myTurn;
       s.state = state.toJSON();
@@ -320,9 +403,13 @@
       if (s === current() && mine && mine.placement === 1) { sfx.win(); confetti(); buzz([60, 40, 60, 40, 160]); }
       refresh();
     });
-    room.onLeave(function () { s.closed = true; refresh(); });
-    active = sessions.length - 1;
-    refresh();
+    room.onLeave(async function (code) {
+      if (s.room !== room) return; // an older connection, already replaced
+      if (s.leaving || s.over || code === 1000 || code === 4000) { s.closed = true; saveResume(s); refresh(); return; }
+      s.reconnecting = true; refresh();
+      var ok = await tryReconnect(s, 12);
+      if (!ok) { s.closed = true; s.reconnecting = false; saveResume(s); pushLog(s, "Connection lost"); refresh(); }
+    });
   }
 
   function pushLog(s, text) {
@@ -332,6 +419,7 @@
   }
 
   function removeSession(s) {
+    s.leaving = true; s.closed = true; saveResume(s);
     try { s.room.leave(true); } catch (e) { /* already closed */ }
     var i = sessions.indexOf(s);
     if (i >= 0) sessions.splice(i, 1);
@@ -360,7 +448,7 @@
       var b = document.createElement("div");
       b.className = "tab" + (i === active ? " active" : "");
       var seatName = s.mySeat >= 0 ? " · " + SEAT_NAMES[s.mySeat] : "";
-      b.textContent = "Game " + (i + 1) + seatName + (s.over ? " (over)" : "");
+      b.textContent = "Game " + (i + 1) + seatName + (s.over ? " (over)" : s.reconnecting ? " (reconnecting…)" : "");
       if (s.myTurn && i !== active) {
         var dot = document.createElement("span");
         dot.className = "dot";

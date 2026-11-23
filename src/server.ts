@@ -14,7 +14,7 @@ export function createGameServer() {
 
   // Tells the web client whether login is required and where ludo-api lives.
   app.get("/config.json", (_req, res) => {
-    res.json({ authRequired: !!config.jwtSecret, apiUrl: apiConfig.url });
+    res.json({ authRequired: !!config.jwtSecret, apiUrl: apiConfig.url, googleClientId: config.googleClientId });
   });
 
   // Playable web client (works from both src/ and dist/).

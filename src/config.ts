@@ -8,6 +8,8 @@ export const config = {
   port: num("PORT", 2567),
   // Same secret as ludo-api. When set, players must join with a login token and userId is taken from it. Empty = dev mode (userId trusted).
   jwtSecret: process.env.JWT_SECRET ?? "",
+  // Web OAuth client ID shown to the browser for the "Sign in with Google" button (public value). Empty = no Google button.
+  googleClientId: process.env.GOOGLE_CLIENT_ID ?? "",
   redisUrl: process.env.REDIS_URL ?? "",
   // A user may be in at most this many active games at once.
   maxActiveGamesPerUser: num("MAX_ACTIVE_GAMES", 3),
