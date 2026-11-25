@@ -38,6 +38,7 @@ export const REACTIONS = ["😀", "😂", "😎", "😡", "😭", "👍", "👏"
 export class LudoRoom extends Room<LudoState> {
   maxClients = 2;
   private game: LudoGame | null = null;
+  private captureCount = new Map<number, number>();
   private seatList: number[] = [0, 2];
   private seatBySession = new Map<string, number>();
   private hostSession: string | null = null;
@@ -342,6 +343,7 @@ export class LudoRoom extends Room<LudoState> {
   private moveFor(seat: number, piece: number): void {
     const game = this.game!;
     const result = game.move(piece);
+    if (result.captured.length > 0) this.captureCount.set(seat, (this.captureCount.get(seat) ?? 0) + result.captured.length);
     this.broadcast("moved", {
       seat,
       piece,
@@ -425,6 +427,12 @@ export class LudoRoom extends Room<LudoState> {
     if (ended) this.endGame();
   }
 
+  /** Captures made and pawns that reached home for a seat, used by tournament scoring. */
+  private stats(seat: number): { captures: number; home: number } {
+    const pieces = this.game?.pieces[seat] ?? [];
+    return { captures: this.captureCount.get(seat) ?? 0, home: pieces.filter((x) => x === 56).length };
+  }
+
   private endGame(): void {
     const game = this.game!;
     const placements = game.placements();
@@ -448,7 +456,7 @@ export class LudoRoom extends Room<LudoState> {
         gameId: this.roomId,
         placements: placements.map((seat, i) => {
           const p = this.playerBySeat(seat);
-          return { userId: p?.userId ?? `seat-${seat}`, placement: i + 1, isBot: !!p?.isBot };
+          return { userId: p?.userId ?? `seat-${seat}`, placement: i + 1, isBot: !!p?.isBot, ...this.stats(seat) };
         }),
       });
     }

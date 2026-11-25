@@ -9,7 +9,7 @@ export interface Eligibility {
 export interface GameReport {
   tournamentId: string;
   gameId: string;
-  placements: { userId: string; placement: number; isBot: boolean }[];
+  placements: { userId: string; placement: number; isBot: boolean; captures?: number; home?: number }[];
 }
 
 export function tournamentsEnabled(): boolean {
