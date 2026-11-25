@@ -464,7 +464,7 @@ export class LudoRoom extends Room<LudoState> {
       gameId: this.roomId,
       placements: placements.map((seat, i) => {
         const p = this.playerBySeat(seat);
-        return { userId: p?.userId ?? `seat-${seat}`, placement: i + 1, isBot: !!p?.isBot };
+        return { userId: p?.userId ?? `seat-${seat}`, placement: i + 1, isBot: !!p?.isBot, ...this.stats(seat) };
       }),
     });
     this.clock.setTimeout(() => this.disconnect(), config.finishedCloseMs);
