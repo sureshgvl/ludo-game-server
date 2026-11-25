@@ -32,6 +32,9 @@ interface AuthData {
  * One room = one game. The room is authoritative: clients only send "roll" and
  * "move"; the server rolls the dice and validates every move with the engine.
  */
+/** Allowed quick reactions (the app shows the same set). */
+export const REACTIONS = ["😀", "😂", "😎", "😡", "😭", "👍", "👏", "🔥"];
+
 export class LudoRoom extends Room<LudoState> {
   maxClients = 2;
   private game: LudoGame | null = null;
@@ -84,6 +87,19 @@ export class LudoRoom extends Room<LudoState> {
       this.handleMove(client, message?.piece),
     );
     this.onMessage("start", (client) => this.handleStart(client));
+    this.onMessage("emoji", (client, message: { e?: unknown }) => this.handleEmoji(client, message?.e));
+  }
+
+  private lastEmojiAt = new Map<number, number>();
+
+  /** Quick reactions: only a fixed set of emojis, at most one per second per player. */
+  private handleEmoji(client: Client, e: unknown): void {
+    const seat = this.seatOf(client);
+    if (seat === undefined || typeof e !== "string" || !REACTIONS.includes(e)) return;
+    const now = Date.now();
+    if (now - (this.lastEmojiAt.get(seat) ?? 0) < 1000) return;
+    this.lastEmojiAt.set(seat, now);
+    this.broadcast("emoji", { seat, e });
   }
 
   /**
